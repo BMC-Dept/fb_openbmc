@@ -1,0 +1,39 @@
+From e13a6fd521b1844c942d45cba16dbcc27f51f508 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Mon, 13 May 2024 11:39:41 +0800
+Subject: [PATCH 2/2] common: change console type from ttyS0 to ttyS4
+
+---
+ board/nuvoton/common/common.c | 2 +-
+ include/configs/arbel.h       | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/board/nuvoton/common/common.c b/board/nuvoton/common/common.c
+index 6da9d93e80..6ad01972e1 100644
+--- a/board/nuvoton/common/common.c
++++ b/board/nuvoton/common/common.c
+@@ -64,7 +64,7 @@ int board_set_console(void)
+ 		       uart_clk, baudrate, uart_clk / ((16 * (divisor + 2))));
+ 	}
+ 	debug("Set env baudrate=%u\n", gd->baudrate);
+-	snprintf(string, sizeof(string), "ttyS0,%un8", gd->baudrate);
++	snprintf(string, sizeof(string), "ttyS4,%un8", gd->baudrate);
+ 	env_set("console", string);
+ 
+ 	return 0;
+diff --git a/include/configs/arbel.h b/include/configs/arbel.h
+index ce94a94476..053066bd53 100644
+--- a/include/configs/arbel.h
++++ b/include/configs/arbel.h
+@@ -39,7 +39,7 @@
+ 		"romboot=echo Booting Kernel from flash at 0x${uimage_flash_addr}; " \
+ 		"echo Using bootargs: ${bootargs};bootm ${uimage_flash_addr}\0" \
+ 		"earlycon=uart8250,mmio32,0xf0000000\0" \
+-		"console=ttyS0,115200n8\0" \
++		"console=ttyS4,57600n8\0" \
+ 		"common_bootargs=setenv bootargs earlycon=${earlycon} root=/dev/ram " \
+ 		"console=${console} ramdisk_size=48000\0" \
+ 		"tftptimeout=1000\0" \
+-- 
+2.25.1
+

@@ -1,0 +1,187 @@
+From e9802c256d87c933ebd90ea1c5893bbb2cb18ac3 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Mon, 13 May 2024 11:35:23 +0800
+Subject: [PATCH 1/2] dts: nuvoton-npcm845-evb: remove un-used device and add
+ r2 pins
+
+---
+ arch/arm/dts/nuvoton-npcm845-evb.dts | 129 ++-------------------------
+ 1 file changed, 6 insertions(+), 123 deletions(-)
+
+diff --git a/arch/arm/dts/nuvoton-npcm845-evb.dts b/arch/arm/dts/nuvoton-npcm845-evb.dts
+index 3007d04267..6a6ff7816e 100644
+--- a/arch/arm/dts/nuvoton-npcm845-evb.dts
++++ b/arch/arm/dts/nuvoton-npcm845-evb.dts
+@@ -154,7 +154,7 @@
+ 	snps,reset-active-low;
+ 	snps,reset-delays-us = <0 10000 500000>;
+ 	snps,reset-gpio = <&gpio5 30 GPIO_ACTIVE_LOW>;    /* gpio190 */
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &gmac1 {
+@@ -164,7 +164,7 @@
+ 	snps,reset-gpio = <&gpio5 2 GPIO_ACTIVE_LOW>;    /* gpio162 */
+ 	phy-supply = <&vsbr2>;
+ 	phy-supply-microvolt = <1800000>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &gmac2 {
+@@ -191,7 +191,7 @@
+ 	snps,reset-active-low;
+ 	snps,reset-delays-us = <0 10000 500000>;
+ 	snps,reset-gpio = <&gpio2 29 GPIO_ACTIVE_LOW>;    /* gpio93 */
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &pspi {
+@@ -215,11 +215,6 @@
+ 	phys = <&usbphy1 NPCM_UDC0_7>;
+ };
+ 
+-&sdhci0 {
+-	bus-width = <0x8>;
+-	status = "okay";
+-};
+-
+ &ehci1 {
+ 	status = "okay";
+ 	phys = <&usbphy2 NPCM_USBH1>;
+@@ -246,127 +241,15 @@
+ 	status = "okay";
+ };
+ 
+-&i2c0 {
+-	status = "okay";
+-};
+-
+-&i2c1 {
+-	status = "okay";
+-};
+-
+-&i2c2 {
+-	status = "okay";
+-};
+-
+-&i2c3 {
+-	status = "okay";
+-};
+-
+-&i2c4 {
+-	status = "okay";
+-};
+-
+-&i2c5 {
+-	status = "okay";
+-};
+-
+-&i2c6 {
+-	status = "okay";
+-	tmp100@48 {
+-		compatible = "tmp100";
+-		reg = <0x48>;
+-		status = "okay";
+-	};
+-};
+-
+-&i2c7 {
+-	status = "okay";
+-};
+-
+-&i2c8 {
+-	status = "okay";
+-};
+-
+-&i2c9 {
+-	status = "okay";
+-};
+-
+-&i2c10 {
+-	status = "okay";
+-};
+-
+-&i2c11 {
+-	status = "okay";
+-};
+-
+-&i2c12 {
+-	status = "okay";
+-};
+-
+-&i2c13 {
+-	status = "okay";
+-};
+-
+-&i2c14 {
+-	status = "okay";
+-};
+-
+-&i2c15 {
+-	status = "okay";
+-};
+-
+-&i2c16 {
+-	status = "okay";
+-};
+-
+-&i2c17 {
+-	status = "okay";
+-};
+-
+-&i2c18 {
+-	status = "okay";
+-};
+-
+-&i2c19 {
+-	status = "okay";
+-};
+-
+-&i2c20 {
+-	status = "okay";
+-};
+-
+-&i2c21 {
+-	status = "okay";
+-};
+-
+-&i2c22 {
+-	status = "okay";
+-};
+-
+-&i2c23 {
+-	status = "okay";
+-};
+-
+-&i2c24 {
+-	status = "okay";
+-};
+-
+-&i2c25 {
+-	status = "okay";
+-};
+-
+-&i2c26 {
+-	status = "okay";
+-};
+-
+ &pinctrl {
+         pinctrl-names = "default";
+         pinctrl-0 = <
+-		&gspi_pins
+-		&vgadig_pins
+ 		&spix_pins
+ 		&r1_pins
+ 		&r1en_pins
+ 		&r1oen_pins
++                &r2_pins
++                &r2en_pins
++                &r2oen_pins
+ 	>;
+ };
+-- 
+2.25.1
+
