@@ -1,0 +1,188 @@
+From 38431e638327e67761e0006e4202b04408af1de2 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Mon, 13 May 2024 17:04:24 +0800
+Subject: [PATCH 3/3] arm64: dts: yosemite4-n: Add nct7363 in dts
+
+---
+ .../dts/nuvoton/nuvoton-npcm845-yosemite4.dts | 144 ++++++++++++++++++
+ 1 file changed, 144 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+index 72ea510988e0..48c1068d39bf 100644
+--- a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
++++ b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+@@ -1326,6 +1326,42 @@ channel@5 {
+ 				};
+ 			};
+ 
++			hwmon0: hwmon@21 {
++				compatible = "nuvoton,nct7363";
++				reg = <0x21>;
++				#pwm-cells = <2>;
++
++				fan-3 {
++					pwms = <&hwmon0 2 20000>;
++					tach-ch = /bits/ 8 <0x00>;
++				};
++
++				fan-4 {
++					pwms = <&hwmon0 5 20000>;
++					tach-ch = /bits/ 8 <0x01>;
++				};
++
++				fan-5 {
++					pwms = <&hwmon0 5 20000>;
++					tach-ch = /bits/ 8 <0x02>;
++				};
++
++				fan-0 {
++					pwms = <&hwmon0 0 20000>;
++					tach-ch = /bits/ 8 <0x09>;
++				};
++
++				fan-1 {
++					pwms = <&hwmon0 0 20000>;
++					tach-ch = /bits/ 8 <0x0c>;
++				};
++
++				fan-2 {
++					pwms = <&hwmon0 2 20000>;
++					tach-ch = /bits/ 8 <0x0e>;
++				};
++			};
++
+ 			gpio@22{
+ 				compatible = "ti,tca6424";
+ 				reg = <0x22>;
+@@ -1333,6 +1369,42 @@ gpio@22{
+ 				#gpio-cells = <2>;
+ 			};
+ 
++			hwmon1: hwmon@23 {
++				compatible = "nuvoton,nct7363";
++				reg = <0x23>;
++				#pwm-cells = <2>;
++
++				fan-3 {
++					pwms = <&hwmon0 2 20000>;
++					tach-ch = /bits/ 8 <0x00>;
++				};
++
++				fan-4 {
++					pwms = <&hwmon0 5 20000>;
++					tach-ch = /bits/ 8 <0x01>;
++				};
++
++				fan-5 {
++					pwms = <&hwmon0 5 20000>;
++					tach-ch = /bits/ 8 <0x02>;
++				};
++
++				fan-0 {
++					pwms = <&hwmon0 0 20000>;
++					tach-ch = /bits/ 8 <0x09>;
++				};
++
++				fan-1 {
++					pwms = <&hwmon0 0 20000>;
++					tach-ch = /bits/ 8 <0x0c>;
++				};
++
++				fan-2 {
++					pwms = <&hwmon0 2 20000>;
++					tach-ch = /bits/ 8 <0x0e>;
++				};
++			};
++
+ 			pwm@2f{
+ 				compatible = "maxim,max31790";
+ 				#address-cells = <1>;
+@@ -1396,6 +1468,42 @@ channel@5 {
+ 				};
+ 			};
+ 
++			hwmon2: hwmon@21 {
++				compatible = "nuvoton,nct7363";
++				reg = <0x21>;
++				#pwm-cells = <2>;
++
++				fan-3 {
++					pwms = <&hwmon2 2 20000>;
++					tach-ch = /bits/ 8 <0x00>;
++				};
++
++				fan-4 {
++					pwms = <&hwmon2 5 20000>;
++					tach-ch = /bits/ 8 <0x01>;
++				};
++
++				fan-5 {
++					pwms = <&hwmon2 5 20000>;
++					tach-ch = /bits/ 8 <0x02>;
++				};
++
++				fan-0 {
++					pwms = <&hwmon2 0 20000>;
++					tach-ch = /bits/ 8 <0x09>;
++				};
++
++				fan-1 {
++					pwms = <&hwmon2 0 20000>;
++					tach-ch = /bits/ 8 <0x0c>;
++				};
++
++				fan-2 {
++					pwms = <&hwmon2 2 20000>;
++					tach-ch = /bits/ 8 <0x0e>;
++				};
++			};
++
+ 			gpio@22{
+ 				compatible = "ti,tca6424";
+ 				reg = <0x22>;
+@@ -1403,6 +1511,42 @@ gpio@22{
+ 				#gpio-cells = <2>;
+ 			};
+ 
++			hwmon3: hwmon@23 {
++				compatible = "nuvoton,nct7363";
++				reg = <0x23>;
++				#pwm-cells = <2>;
++
++				fan-3 {
++					pwms = <&hwmon3 2 20000>;
++					tach-ch = /bits/ 8 <0x00>;
++				};
++
++				fan-4 {
++					pwms = <&hwmon3 5 20000>;
++					tach-ch = /bits/ 8 <0x01>;
++				};
++
++				fan-5 {
++					pwms = <&hwmon3 5 20000>;
++					tach-ch = /bits/ 8 <0x02>;
++				};
++
++				fan-0 {
++					pwms = <&hwmon3 0 20000>;
++					tach-ch = /bits/ 8 <0x09>;
++				};
++
++				fan-1 {
++					pwms = <&hwmon3 0 20000>;
++					tach-ch = /bits/ 8 <0x0c>;
++				};
++
++				fan-2 {
++					pwms = <&hwmon3 2 20000>;
++					tach-ch = /bits/ 8 <0x0e>;
++				};
++			};
++
+ 			pwm@2f{
+ 				compatible = "maxim,max31790";
+ 				#address-cells = <1>;
+-- 
+2.25.1
+
