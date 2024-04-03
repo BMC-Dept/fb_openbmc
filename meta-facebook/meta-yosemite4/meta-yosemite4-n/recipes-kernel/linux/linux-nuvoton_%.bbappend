@@ -21,4 +21,5 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0012-spi-npcm-pspi-Handle-the-rx-data-when-spi-transfer-s.patch \
             file://0013-driver-i3c-handle-stop-signal-well.patch \
             file://0014-driver-rtc-nct3018-revert-to-pervious-version.patch \
+            file://0015-kernel-dts-disable-pcie-in-common-dtsi.patch \
            "

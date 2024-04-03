@@ -1,0 +1,28 @@
+From 5d27c10df4a8e56774b6975592209f6c75d10cc8 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Wed, 3 Apr 2024 16:58:13 +0800
+Subject: [PATCH] kernel: dts: disable pcie in common dtsi
+
+Disable pcie feature in common dtsi because it would affect the I2C bus
+10.
+
+Nuvoton will help to fix this issue.
+---
+ arch/arm64/boot/dts/nuvoton/nuvoton-common-npcm8xx.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/nuvoton/nuvoton-common-npcm8xx.dtsi b/arch/arm64/boot/dts/nuvoton/nuvoton-common-npcm8xx.dtsi
+index f108e89b4f04..a61b1c80e645 100644
+--- a/arch/arm64/boot/dts/nuvoton/nuvoton-common-npcm8xx.dtsi
++++ b/arch/arm64/boot/dts/nuvoton/nuvoton-common-npcm8xx.dtsi
+@@ -95,6 +95,7 @@ pcie: pcie@e1000000 {
+ 			interrupt-map-mask = <0 0 0 7>;
+ 			interrupt-map = <0 0 0 1 &gic GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
+ 			nuvoton,sysgcr = <&gcr>;
++			status = "disabled";
+ 		};
+ 
+ 		ehci1: usb@f0828100 {
+-- 
+2.25.1
+
