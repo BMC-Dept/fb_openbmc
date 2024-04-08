@@ -6,4 +6,5 @@ SRC_URI +="file://yosemite4-common.cfg \
            file://yosemite4.cfg \
            file://0001-dts-nuvoton-npcm845-evb-remove-un-used-device-and-ad.patch \
            file://0002-common-change-console-type-from-ttyS0-to-ttyS4.patch \
+           file://0003-cmd-mem-set-test-result-of-mtest-to-enviroment-varia.patch \
            "
