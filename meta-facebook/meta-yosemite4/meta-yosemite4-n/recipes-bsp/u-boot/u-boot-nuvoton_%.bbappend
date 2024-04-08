@@ -7,4 +7,5 @@ SRC_URI +="file://yosemite4-common.cfg \
            file://0001-uboot-disable-mmc-gmac3-and-add-r2-pins.patch \
            file://0002-uboot-change-console-type-to-ttyS4.patch \
            file://0003-arm-dts-removed-the-un-used-devices.patch \
+           file://0004-cmd-mem-set-test-result-of-mtest-to-enviroment-varia.patch \
            "
