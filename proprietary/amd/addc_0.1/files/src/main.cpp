@@ -41,6 +41,8 @@
 
 #define sd_journal_print syslog
 #define sd_journal_send
+#else
+#include <systemd/sd-journal.h>
 #endif
 
 extern "C" {
