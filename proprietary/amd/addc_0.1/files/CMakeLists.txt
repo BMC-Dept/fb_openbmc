@@ -77,6 +77,7 @@ install (TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 target_compile_definitions (
     ${PROJECT_NAME} PRIVATE $<$<BOOL:${ENABLE_AMD_RAS_LOGS}>: -DENABLE_AMD_RAS_LOGS>
                             $<$<BOOL:${NO_SYSTEMD}>: -DNO_SYSTEMD> $<$<BOOL:${BIC_APML_INTF}>: -DBIC_APML_INTF>
+                            $<$<BOOL:${ENABLE_PLDM}>: -DENABLE_PLDM>
 )
 
 if (NOT NO_SYSTEMD)

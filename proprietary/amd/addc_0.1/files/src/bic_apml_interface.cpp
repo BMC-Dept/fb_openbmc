@@ -4,7 +4,13 @@
 #include <cstring>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <vector>
+#include <string>
+#ifndef ENABLE_PLDM
 #include <facebook/bic_xfer.h>
+#endif
 #include <openbmc/ipmi.h>
 
 /* one byte mask for DDR bandwidth */
@@ -66,7 +72,24 @@ void set_current_target_fruid(uint8_t fruid)
 {
     g_fruid = fruid;
 }
+#ifdef ENABLE_PLDM
+std::string uint8ToHexString(uint8_t value) {
+    std::stringstream stream;
+    stream << "0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(value);
+    return stream.str();
+}
 
+std::string uint8ArrayToHexString(const uint8_t* array, int length) {
+    std::ostringstream oss;
+    for (int i = 0; i < length; ++i) {
+        oss << "0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(array[i]);
+        if (i != length - 1) {
+            oss << " ";
+        }
+    }
+    return oss.str();
+}
+#endif
 oob_status_t bic_ipmb_apml_read_byte(struct apml_message *msg, uint8_t intf_type)
 {
     const uint8_t iana[IANA_SIZE] = {0x15, 0xa0, 0x00};
@@ -81,11 +104,48 @@ oob_status_t bic_ipmb_apml_read_byte(struct apml_message *msg, uint8_t intf_type
     tbuf[4] = msg->data_in.reg_in[0];
     tlen = 5;
 
+#ifndef ENABLE_PLDM
     ret = bic_ipmb_wrapper(g_fruid, NETFN_OEM_1S_REQ, CMD_OEM_APML_READ_DATA, tbuf, tlen, rbuf, &rlen);
     if (ret != BIC_STATUS_SUCCESS)
         return OOB_UNKNOWN_ERROR;
 
     msg->data_out.reg_out[0] = rbuf[3];
+#else
+    FILE *fp;
+    char buffer[1024];
+    auto eid = g_fruid * 10;
+    auto netfn = (uint8_t)(NETFN_OEM_1S_REQ << 2);
+    auto command = "pldmtool raw -m " + std::to_string(eid) + " -d 0x80 0x3f 0x01 0x15 0xA0 0x00 "
+                 + uint8ToHexString(netfn) + " " + uint8ToHexString(CMD_OEM_APML_READ_DATA)
+                 + " " + uint8ArrayToHexString(tbuf, tlen);
+
+    fp = popen(command.c_str(), "r");
+    if (fp == NULL) {
+        perror("popen() failed");
+        return OOB_UNKNOWN_ERROR;
+    }
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+        output += buffer;
+    }
+    pclose(fp);
+
+    size_t rx_pos = output.find("Rx:");
+    if (rx_pos != std::string::npos) {
+        std::istringstream rx_stream(output.substr(rx_pos + 4));
+        std::vector<uint8_t> rx_data;
+        int hex_byte;
+        while (rx_stream >> std::hex >> hex_byte) {
+            rx_data.push_back(hex_byte);
+        }
+
+        if (rx_data[9] != CC_SUCCESS) {
+            return OOB_UNKNOWN_ERROR;
+        }
+
+        msg->data_out.reg_out[0] = rx_data[13];
+    }
+#endif
     return OOB_SUCCESS;
 }
 
@@ -104,10 +164,44 @@ oob_status_t bic_ipmb_apml_write_byte(struct apml_message *msg, uint8_t intf_typ
     tbuf[5] = msg->data_in.reg_in[4];
     tlen = 6;
 
+#ifndef ENABLE_PLDM
     ret = bic_ipmb_wrapper(g_fruid, NETFN_OEM_1S_REQ, CMD_OEM_APML_WRITE_DATA, tbuf, tlen, rbuf, &rlen);
     if (ret != BIC_STATUS_SUCCESS)
         return OOB_UNKNOWN_ERROR;
+#else
+    FILE *fp;
+    char buffer[1024];
+    auto eid = g_fruid * 10;
+    auto netfn = (uint8_t)(NETFN_OEM_1S_REQ << 2);
+    auto command = "pldmtool raw -m " + std::to_string(eid) + " -d 0x80 0x3f 0x01 0x15 0xA0 0x00 "
+                 + uint8ToHexString(netfn) + " " + uint8ToHexString(CMD_OEM_APML_WRITE_DATA)
+                 + " " + uint8ArrayToHexString(tbuf, tlen);
 
+    fp = popen(command.c_str(), "r");
+    if (fp == NULL) {
+        perror("popen() failed");
+        return OOB_UNKNOWN_ERROR;
+    }
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+        output += buffer;
+    }
+    pclose(fp);
+
+    size_t rx_pos = output.find("Rx:");
+    if (rx_pos != std::string::npos) {
+        std::istringstream rx_stream(output.substr(rx_pos + 4));
+        std::vector<uint8_t> rx_data;
+        int hex_byte;
+        while (rx_stream >> std::hex >> hex_byte) {
+            rx_data.push_back(hex_byte);
+        }
+
+        if (rx_data[9] != CC_SUCCESS) {
+            return OOB_UNKNOWN_ERROR;
+        }
+    }
+#endif
     return OOB_SUCCESS;
 }
 
@@ -143,6 +237,7 @@ oob_status_t bic_ipmb_apml_request(struct apml_message *msg)
         tlen = 9;
     }
 
+#ifndef ENABLE_PLDM
     ret = bic_ipmb_wrapper(g_fruid, NETFN_OEM_1S_REQ, CMD_OEM_APML_SEND_REQ, tbuf, tlen, rbuf, &rlen);
     if (ret != BIC_STATUS_SUCCESS)
         return OOB_UNKNOWN_ERROR;
@@ -152,17 +247,109 @@ oob_status_t bic_ipmb_apml_request(struct apml_message *msg)
     tlen = 4;
     memset(rbuf, 0, sizeof(rbuf));
     rlen = 255;
+#else
+    FILE *fp;
+    char buffer[1024];
+    auto eid = g_fruid * 10;
+    auto netfn = (uint8_t)(NETFN_OEM_1S_REQ << 2);
+    auto command = "pldmtool raw -m " + std::to_string(eid) + " -d 0x80 0x3f 0x01 0x15 0xA0 0x00 "
+                    + uint8ToHexString(netfn) + " " + uint8ToHexString(CMD_OEM_APML_SEND_REQ)
+                    + " " + uint8ArrayToHexString(tbuf, tlen);
+
+    fp = popen(command.c_str(), "r");
+    if (fp == NULL) {
+        perror("popen() failed");
+        return OOB_UNKNOWN_ERROR;
+    }
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+        output += buffer;
+    }
+    pclose(fp);
+
+    std::vector<uint8_t> rx_data;
+    size_t rx_pos = output.find("Rx:");
+    if (rx_pos != std::string::npos) {
+        std::istringstream rx_stream(output.substr(rx_pos + 4));
+        int hex_byte;
+        while (rx_stream >> std::hex >> hex_byte) {
+            rx_data.push_back(hex_byte);
+        }
+
+        if (rx_data[9] != CC_SUCCESS) {
+            return OOB_UNKNOWN_ERROR;
+        }
+    }
+
+    memset(tbuf, 0, sizeof(tbuf));
+    memcpy(tbuf, iana, sizeof(iana));
+    tbuf[3] = rx_data[13];
+    tlen = 4;
+    rx_data.clear();
+#endif
 
     while (retries < MAX_RETRIES)
     {
         sleep(1);
+#ifndef ENABLE_PLDM
         ret = bic_ipmb_wrapper(g_fruid, NETFN_OEM_1S_REQ, CMD_OEM_APML_GET_RES, tbuf, tlen, rbuf, &rlen);
         if (ret == BIC_STATUS_SUCCESS)
             break;
+#else
+        FILE *fp;
+        char buffer[1024];
+        auto eid = g_fruid * 10;
+        auto netfn = (uint8_t)(NETFN_OEM_1S_REQ << 2);
+        auto command = "pldmtool raw -m " + std::to_string(eid) + " -d 0x80 0x3f 0x01 0x15 0xA0 0x00 "
+                     + uint8ToHexString(netfn) + " " + uint8ToHexString(CMD_OEM_APML_GET_RES)
+                     + " " + uint8ArrayToHexString(tbuf, tlen);
 
+        fp = popen(command.c_str(), "r");
+        if (fp == NULL) {
+            perror("popen() failed");
+            return OOB_UNKNOWN_ERROR;
+        }
+        std::string output;
+        while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+            output += buffer;
+        }
+        pclose(fp);
+
+        size_t rx_pos = output.find("Rx:");
+        if (rx_pos != std::string::npos) {
+            std::istringstream rx_stream(output.substr(rx_pos + 4));
+            int hex_byte;
+            while (rx_stream >> std::hex >> hex_byte) {
+                rx_data.push_back(hex_byte);
+            }
+
+            if (rx_data[9] == CC_SUCCESS) {
+                break;
+            }
+            if (rx_data[9] != CC_SUCCESS && retries == MAX_RETRIES) {
+                return OOB_UNKNOWN_ERROR;
+            }
+        }
+#endif
         retries++;
     }
 
+#ifdef ENABLE_PLDM
+    if (msg->cmd == 0x1000 || msg->cmd == 0x1001)
+    {
+        msg->fw_ret_code = rx_data[13];
+        msg->data_out.cpu_msr_out = *reinterpret_cast<uint64_t*>(&rx_data[14]);
+        if (rx_data[13])
+            ret = OOB_CPUID_MSR_ERR_BASE + msg->fw_ret_code;
+        else
+            ret = OOB_SUCCESS;
+    }
+    else
+    {
+        msg->data_out.mb_out[0] = *reinterpret_cast<uint32_t*>(&rx_data[14]);
+        ret = OOB_SUCCESS;
+    }
+#else
     if (ret != BIC_STATUS_SUCCESS)
         return OOB_UNKNOWN_ERROR;
 
@@ -180,7 +367,7 @@ oob_status_t bic_ipmb_apml_request(struct apml_message *msg)
         msg->data_out.mb_out[0] = ((uint32_t*)(rbuf + 4))[0];
         ret = OOB_SUCCESS;
     }
-
+#endif
     return (oob_status_t)ret;
 }
 
