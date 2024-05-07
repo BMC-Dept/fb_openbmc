@@ -27,6 +27,7 @@ int CpldLatticeManager::jedFileParser()
     bool ufmPrepare = false;
     bool versionStart = false;
     bool checksumStart = false;
+    bool ebrInitDataStart = false;
     int numberSize = 0;
 
     std::string line;
@@ -57,6 +58,10 @@ int CpldLatticeManager::jedFileParser()
         else if (line.rfind(TAG_CF_START, 0) == 0)
         {
             cfStart = true;
+        }
+        else if (line.rfind(TAG_EBR_INIT_DATA, 0) == 0)
+        {
+            ebrInitDataStart = true;
         }
         else if (ufmPrepare == true)
         {
@@ -121,7 +126,50 @@ int CpldLatticeManager::jedFileParser()
                     std::cerr << "CF Size = " << fwInfo.cfgData.size()
                               << std::endl;
                     cfStart = false;
-                    ufmPrepare = true;
+                    if (ebrInitDataStart == false)
+                    {
+                        ufmPrepare = true;
+                    }
+                }
+            }
+        }
+        else if (ebrInitDataStart == true)
+        {
+            // NOTE EBR_INIT DATA
+            if ((line.rfind(TAG_EBR_INIT_DATA, 0)) && (line.size() != 1))
+            {
+                if ((line.rfind("L", 0)) && (line.size() != 1))
+                {
+                    if ((line.rfind("0", 0) == 0) || (line.rfind("1", 0) == 0))
+                    {
+                        while (line.size())
+                        {
+                            auto binary_str = line.substr(0, 8);
+                            try
+                            {
+                                fwInfo.cfgData.push_back(
+                                    std::stoi(binary_str, 0, 2));
+                                line.erase(0, 8);
+                            }
+                            catch (const std::invalid_argument& error)
+                            {
+                                break;
+                            }
+                            catch (...)
+                            {
+                                std::cerr << "Error while parsing CF section"
+                                        << std::endl;
+                                return -1;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        std::cerr << "CF Size with ERB_INIT Data = " << fwInfo.cfgData.size()
+                                << std::endl;
+                        ebrInitDataStart = false;
+                        ufmPrepare = true;
+                    }
                 }
             }
         }
@@ -168,7 +216,7 @@ int CpldLatticeManager::jedFileParser()
         }
         else if (ufmStart == true)
         {
-            if ((line.rfind("L", 0)) && (line.size() == 129))
+            if ((line.rfind("L", 0)) && (line.size() != 1))
             {
                 if ((line.rfind("0", 0) == 0) || (line.rfind("1", 0) == 0))
                 {
@@ -193,11 +241,15 @@ int CpldLatticeManager::jedFileParser()
                         }
                     }
                 }
+                else
+                {
+                    std::cout << "UFM size = " << fwInfo.ufmData.size()
+                              << std::endl;
+                    ufmStart = false;
+                }
             }
         }
     }
-    std::cout << "UFM size = " << fwInfo.ufmData.size()
-                << std::endl;
 
     // Compute check sum
     unsigned int jedFileCheckSum = 0;
@@ -434,6 +486,34 @@ int CpldLatticeManager::writeProgramPage()
     return 0;
 }
 
+int CpldLatticeManager::programUserCode()
+{
+    /*
+    CMD_PROGRAM_USER_CODE = 0xC2,
+
+    Program user code.
+    */
+    std::vector<uint8_t> cmd = {CMD_PROGRAM_USER_CODE, 0x0, 0x0, 0x0};
+    std::vector<uint8_t> read;
+    for (int i = 3; i >= 0; i--)
+    {
+        cmd.push_back((fwInfo.Version >> (i * 8)) & 0xFF);
+    }
+
+    if (i2cWriteReadCmd(cmd, 0, read) < 0)
+    {
+        return -1;
+    }
+
+    if (!waitBusyAndVerify())
+    {
+        std::cerr << "Wait busy and verify fail" << std::endl;
+        return -1;
+    }
+
+    return 0;
+}
+
 int CpldLatticeManager::programDone()
 {
     // CMD_PROGRAM_DONE = 0x5E
@@ -622,6 +702,13 @@ int CpldLatticeManager::XO2XO3Family_update()
         return -1;
     }
     std::cout << "Write Program Page Done." << std::endl;
+
+    std::cout << "Program user code." << std::endl;
+    if (programUserCode() < 0)
+    {
+        std::cerr << "Program user code failed." << std::endl;
+        return -1;
+    }
 
     if (programDone() < 0)
     {

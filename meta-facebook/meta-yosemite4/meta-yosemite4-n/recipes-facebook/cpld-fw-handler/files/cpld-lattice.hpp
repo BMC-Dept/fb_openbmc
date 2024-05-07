@@ -16,6 +16,7 @@ static constexpr auto TAG_UFM = "NOTE TAG DATA";
 static constexpr auto TAG_ROW = "NOTE FEATURE";
 static constexpr auto TAG_CHECKSUM = "C";
 static constexpr auto TAG_USERCODE = "NOTE User Electronic";
+static constexpr auto TAG_EBR_INIT_DATA = "NOTE EBR_INIT DATA";
 
 constexpr uint8_t isOK = 0;
 constexpr uint8_t isReady = 0;
@@ -32,6 +33,7 @@ enum cpldI2cCmd
     CMD_PROGRAM_PAGE = 0x70,
     CMD_ENABLE_CONFIG_MODE = 0x74,
     CMD_READ_FW_VERSION = 0xC0,
+    CMD_PROGRAM_USER_CODE = 0xC2,
     CMD_READ_DEVICE_ID = 0xE0,
     CMD_READ_BUSY_FLAG = 0xF0,
 };
@@ -68,6 +70,7 @@ class CpldLatticeManager : public CpldManager
     int eraseFlash();
     int resetConfigFlash();
     int writeProgramPage();
+    int programUserCode();
     int programDone();
     int disableusyAndVerify();
     int disableConfigInterface();
