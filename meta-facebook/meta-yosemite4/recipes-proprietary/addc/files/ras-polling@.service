@@ -5,6 +5,3 @@ Description=Polling RAS status and do crash dump - this is a backup solution
 Type=simple
 Restart=always
 ExecStart=/usr/libexec/amd-ras/ras-polling.sh %i
-
-[Install]
-WantedBy=obmc-host-start@%i.target
