@@ -18,4 +18,5 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0009-arm64-dts-yosemite4-n-Change-IOE-i2c-address.patch \
             file://0010-arm64-dts-yosemite4-n-Add-nct7363-in-dts.patch \
             file://0011-yosemite4-n-dts-disabled-pcie-in-common-dts.patch \
+            file://0012-drivers-spi-npcm-fiu-add-delay-before-reboot-to-avoi.patch \
            "
