@@ -100,7 +100,7 @@
             <offset>0x10C</offset>
             <size>0x2</size>
         </config>
-        <content format="32bit">975</content>
+        <content format="32bit">1050</content>
     </BinField>
     <BinField>
         <!-- supporeted values: 333,500,600,666,700,720,750,800,825,850,900,950,1000.
@@ -218,7 +218,7 @@
             <offset>0x134</offset>
             <size>0x1</size>
         </config>
-        <content format="32bit">0x04</content>
+        <content format="32bit">0x34</content>
     </BinField>
     <BinField>
         <!-- HOST_IF.
@@ -470,7 +470,7 @@
             <offset>0x14D</offset>
             <size>0x1</size>
         </config>
-        <content format="32bit">0x00</content>
+        <content format="32bit">0xBC</content>
     </BinField>
     <BinField>
         <!-- SWEEP_MAIN_FLOW: enable running main flow sweeps. bitwise:
