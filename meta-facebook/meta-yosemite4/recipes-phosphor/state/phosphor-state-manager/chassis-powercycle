@@ -32,10 +32,6 @@ chassis-power-cycle()
             then
                 echo "Failed to inform management CPLD that slot$1 is 12V off"
             fi
-            if ! gpioset "$GPIOCHIP_IO_EXP_BIC_PWR_CTRL" "$IO_EXP_BIC_PWR_CTRL"=0
-            then
-                echo "Failed to set slot$1 sentinel dome bic off"
-            fi
             sleep 1
             if ! gpioset "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_CTRL"=1
             then
@@ -61,6 +57,7 @@ chassis-power-cycle()
 
             busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_ON_PROPERTY"
             /usr/libexec/phosphor-state-manager/wait-until-mctp-connection-done "$CHASSIS_ID" && systemctl restart "phosphor-discover-system-state@$CHASSIS_ID.service"
+            echo "Chassis$CHASSIS_ID cycle success"
             exit 0;
         else
             busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_OFF_PROPERTY"

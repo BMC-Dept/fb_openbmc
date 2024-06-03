@@ -36,10 +36,10 @@ chassis-power-on()
         fi
 
         busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_ON_PROPERTY"
-        echo "Chassis is power on"
+        echo "Chassis$CHASSIS_ID is power on"
     else
         busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_OFF_PROPERTY"
-        echo "Chassis is power off"
+        echo "Chassis$CHASSIS_ID is power off"
         exit 0;
     fi
 }
@@ -51,6 +51,6 @@ then
     /usr/libexec/phosphor-state-manager/wait-until-mctp-connection-done "$CHASSIS_ID" && systemctl restart "phosphor-discover-system-state@$CHASSIS_ID.service"
     exit 0;
 else
-    echo "Chassis is already on"
+    echo "Chassis$CHASSIS_ID is already on"
     exit 0;
 fi
