@@ -37,7 +37,7 @@ chassis-power-cycle()
             then
                 echo "Failed to set slot$1 power off"
             fi
-            sleep 10
+            sleep 20
         fi
         if ! gpioset "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_CTRL"=0
         then
