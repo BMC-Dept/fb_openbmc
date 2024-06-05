@@ -9,5 +9,6 @@ OBMC_IMAGE_EXTRA_INSTALL:append = " \
     compute-software-id \
     loadsvf \
     mfg-tool \
+    eid-auto-discovery \
 "
 
