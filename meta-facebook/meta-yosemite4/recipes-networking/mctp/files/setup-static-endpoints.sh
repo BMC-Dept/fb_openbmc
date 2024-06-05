@@ -28,3 +28,14 @@ gpio_val=$(devmem 0x1e780078 8)
 if [ $((gpio_val & 0x08)) -eq 0 ]; then
     systemctl start setup-nic-endpoint-slot@3.service
 fi
+
+# Get EID from all Sentinal Dome BICs
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c0" 6 0x07 0xec 0x80 0x01 0x00 0x00
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c0" 6 0x07 0xec 0x80 0x01 0x00 0x05
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c0" 6 0x07 0xec 0x80 0x01 0x00 0x0a
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c0" 6 0x07 0xec 0x80 0x01 0x00 0x0f
+
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c1" 6 0x07 0xec 0x80 0x01 0x00 0x14
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c1" 6 0x07 0xec 0x80 0x01 0x00 0x19
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c1" 6 0x07 0xec 0x80 0x01 0x00 0x1e
+busctl call xyz.openbmc_project.MCTP /xyz/openbmc_project/mctp au.com.CodeConstruct.MCTP LearnEndpoint say "mctpi3c1" 6 0x07 0xec 0x80 0x01 0x00 0x23
