@@ -1,0 +1,26 @@
+From 1d327a2c12980459b9d84c41fef17a88e87d1bac Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Tue, 11 Jun 2024 11:08:06 +0800
+Subject: [PATCH] arch: arm64: Kconfig: increase the default GPIO number
+
+Increase the default GPIO number of Nuvoton to 2048.
+---
+ arch/arm64/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index be340b6edb77..e7fdd01e216e 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -2170,7 +2170,7 @@ config STACKPROTECTOR_PER_TASK
+ config ARCH_NR_GPIO
+         int
+         default 2048 if ARCH_APPLE
+-        default 1024 if ARCH_NPCM
++        default 2048 if ARCH_NPCM
+         default 0
+         help
+           Maximum number of GPIOs in the system.
+-- 
+2.25.1
+
