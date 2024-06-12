@@ -1,0 +1,39 @@
+From 0819801290eb1cefeaefaa0303bfcebb22c70ba2 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Wed, 12 Jun 2024 16:15:44 +0800
+Subject: [PATCH] arm64: dts: yosemite4-n: increase the size of rwfs
+
+Decrease the rofs to 42 MB and increase the rwfs to 10 MB.
+---
+ arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+index 48c1068d39bf..0bac679b237d 100644
+--- a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
++++ b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+@@ -251,17 +251,17 @@ u-boot-env@3c0000 {
+ 				label = "u-boot-env";
+ 				reg = <0x003C0000 0x00040000>;
+ 				};
+-			kernel@200000 {
++			kernel@400000 {
+ 				label = "kernel";
+ 				reg = <0x00400000 0x00800000>;
+ 				};
+ 			rofs@c00000 {
+ 				label = "rofs";
+-				reg = <0x00C00000 0x03000000>;
++				reg = <0x00C00000 0x02A00000>;
+ 				};
+-			rwfs@3c00000 {
++			rwfs@3600000 {
+ 				label = "rwfs";
+-				reg = <0x3C00000 0x400000>;
++				reg = <0x03600000 0x00A00000>;
+ 				};
+ 		};
+ 	};
+-- 
+2.25.1
+
