@@ -1,0 +1,25 @@
+From 96b0a74796d613f7944655c92974f7aa586a24d8 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Mon, 17 Jun 2024 10:01:56 +0800
+Subject: [PATCH] driver: i3c: increase DMA transfer timeout
+
+---
+ drivers/i3c/master/svc-i3c-master.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i3c/master/svc-i3c-master.c b/drivers/i3c/master/svc-i3c-master.c
+index 952feabee672..d6d72de27691 100644
+--- a/drivers/i3c/master/svc-i3c-master.c
++++ b/drivers/i3c/master/svc-i3c-master.c
+@@ -1394,7 +1394,7 @@ static int svc_i3c_master_wait_for_complete(struct svc_i3c_master *master)
+ 	u32 count;
+ 	int ret;
+ 
+-	ret = wait_for_completion_timeout(&master->xfer_comp, msecs_to_jiffies(100));
++	ret = wait_for_completion_timeout(&master->xfer_comp, msecs_to_jiffies(1000));
+ 	if (!ret) {
+ 		dev_err(master->dev, "DMA transfer timeout (%s)\n", xfer->rnw ? "Read" : "write");
+ 		dev_err(master->dev, "mstatus = 0x%02x\n", readl(master->regs + SVC_I3C_MSTATUS));
+-- 
+2.25.1
+
