@@ -1,0 +1,49 @@
+From ecdb3cc3400985b55e24468de6d131c110515609 Mon Sep 17 00:00:00 2001
+From: Marvin Lin <milkfafa@gmail.com>
+Date: Tue, 18 Jun 2024 10:57:35 +0800
+Subject: [PATCH] Update partitions for increasing RWFS
+
+---
+ .../dts/nuvoton/nuvoton-npcm845-yosemite4.dts  | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+index 0bac679b237d..b97e758a38d1 100644
+--- a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
++++ b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+@@ -245,23 +245,23 @@ bmc@0 {
+ 				};
+ 			u-boot@0 {
+ 				label = "u-boot";
+-				reg = <0x00000000 0x003C0000>;
++				reg = <0x00000000 0x002BE000>;
+ 				};
+-			u-boot-env@3c0000 {
++			u-boot-env@2C0000 {
+ 				label = "u-boot-env";
+-				reg = <0x003C0000 0x00040000>;
++				reg = <0x002C0000 0x00040000>;
+ 				};
+-			kernel@400000 {
++			kernel@300000 {
+ 				label = "kernel";
+-				reg = <0x00400000 0x00800000>;
++				reg = <0x00300000 0x00600000>; // 6MB
+ 				};
+-			rofs@c00000 {
++			rofs@900000 {
+ 				label = "rofs";
+-				reg = <0x00C00000 0x02A00000>;
++				reg = <0x00900000 0x02700000>; // 39MB
+ 				};
+-			rwfs@3600000 {
++			rwfs@3000000 {
+ 				label = "rwfs";
+-				reg = <0x03600000 0x00A00000>;
++				reg = <0x03000000 0x01000000>; // 16MB
+ 				};
+ 		};
+ 	};
+-- 
+2.34.1
+

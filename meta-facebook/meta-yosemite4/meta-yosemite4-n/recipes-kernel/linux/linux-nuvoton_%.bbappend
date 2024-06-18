@@ -20,4 +20,6 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0011-yosemite4-n-dts-disabled-pcie-in-common-dts.patch \
             file://0012-drivers-spi-npcm-fiu-add-delay-before-reboot-to-avoi.patch \
             file://0013-arch-arm64-Kconfig-increase-the-default-GPIO-number.patch \
+            file://0014-arm64-dts-yosemite4-n-increase-the-size-of-rwfs.patch \
+            file://0015-Update-partitions-for-increasing-RWFS.patch \
            "
