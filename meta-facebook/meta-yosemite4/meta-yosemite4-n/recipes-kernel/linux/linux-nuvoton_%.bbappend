@@ -22,4 +22,5 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0013-arch-arm64-Kconfig-increase-the-default-GPIO-number.patch \
             file://0014-arm64-dts-yosemite4-n-increase-the-size-of-rwfs.patch \
             file://0015-Update-partitions-for-increasing-RWFS.patch \
+            file://0016-kernel-driver-npcm_adc-add-debug-print.patch \
            "

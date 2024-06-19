@@ -1,0 +1,42 @@
+From ad86ff9c939cdb9cd01f3ab1b8aeae0169c0f95f Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Wed, 19 Jun 2024 09:20:30 +0800
+Subject: [PATCH 1/2] kernel: driver: npcm_adc: add debug print
+
+---
+ drivers/iio/adc/npcm_adc.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/iio/adc/npcm_adc.c b/drivers/iio/adc/npcm_adc.c
+index 7ac1fc5e809d..2f3b174d14ec 100644
+--- a/drivers/iio/adc/npcm_adc.c
++++ b/drivers/iio/adc/npcm_adc.c
+@@ -284,7 +284,7 @@ static int npcm_adc_read(struct npcm_adc *info, int *val, u8 channel)
+ 		  NPCM_ADCCON_ADC_CONV, info->regs + NPCM_ADCCON);
+ 
+ 	ret = wait_event_timeout(info->wq, info->int_status,
+-				 msecs_to_jiffies(10));
++				 msecs_to_jiffies(500));
+ 	if ((ret == 0) && (info->int_status == false)) {
+ 		regtemp = ioread32(info->regs + NPCM_ADCCON);
+ 		if (regtemp & NPCM_ADCCON_ADC_CONV) {
+@@ -299,12 +299,14 @@ static int npcm_adc_read(struct npcm_adc *info, int *val, u8 channel)
+ 				  info->regs + NPCM_ADCCON);
+ 			dev_err(info->dev, "RESET ADC Complete\n");
+ 		}
+-
++		printk("npcm_adc_read: ETIMEDOUT\n");
+ 		return -ETIMEDOUT;
+ 	}
+ 
+-	if (ret < 0)
++	if (ret < 0) {
++		printk("npcm_adc_read: error ret = 0x%x\n", ret);
+ 		return ret;
++	}
+ 
+ 	*val = ioread32(info->regs + NPCM_ADCDATA);
+ 	*val &= info->data->data_mask;
+-- 
+2.25.1
+
