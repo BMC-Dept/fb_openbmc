@@ -1,6 +1,6 @@
-From e416847c42fef7a21af3d0c911684890f6014f9c Mon Sep 17 00:00:00 2001
+From 8888dcc313f9ade097bae59dbf788937229dad29 Mon Sep 17 00:00:00 2001
 From: Kevin Tung <Kevin.Tung@quantatw.com>
-Date: Tue, 7 May 2024 19:17:06 +0800
+Date: Mon, 17 Jun 2024 16:38:54 +0800
 Subject: [PATCH] Skip parsing extra 4 bytes of NVIDIA header raw data
 
 Skip the first 4 bytes because NVIDIA SatMC sends additional
@@ -13,7 +13,7 @@ for CPEREvent request command, but are incompatible with libcper.
  1 file changed, 7 insertions(+)
 
 diff --git a/cli-app/cper-convert.c b/cli-app/cper-convert.c
-index 86a6d6f..be1f2e9 100644
+index 35541c7..3cf3b46 100644
 --- a/cli-app/cper-convert.c
 +++ b/cli-app/cper-convert.c
 @@ -90,6 +90,13 @@ void cper_to_json(char *in_file, char *out_file, int is_single_section)
@@ -26,10 +26,10 @@ index 86a6d6f..be1f2e9 100644
 +	// eventDataLength (uint16), which are the header of the add event data 
 +	// for CPEREvent request command, but are incompatible with libcper.
 +	fseek(cper_file, 4, SEEK_SET);
-+
++	
  	//Convert.
  	json_object *ir;
- 	if (is_single_section)
+ 	if (is_single_section) {
 -- 
-2.43.2
+2.45.2
 
