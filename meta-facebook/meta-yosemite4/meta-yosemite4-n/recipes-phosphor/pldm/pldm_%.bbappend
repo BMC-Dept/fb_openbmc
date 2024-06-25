@@ -15,6 +15,7 @@ SRC_URI += " \
     file://0009-platform-mc-fix-up-tid_t-to-pldm_tid_t-conversions.patch \
     file://0010-Support-OEM-META-command-for-host-BIOS-version.patch \
     file://0011-platform-mc-Monitor-all-sensors-once-upon-the-first-.patch \
+    file://0012-pldm-Revise-image-path-for-update.patch \
     file://pldm-restart.sh \
     file://pldm-slow-restart.service \
 "
