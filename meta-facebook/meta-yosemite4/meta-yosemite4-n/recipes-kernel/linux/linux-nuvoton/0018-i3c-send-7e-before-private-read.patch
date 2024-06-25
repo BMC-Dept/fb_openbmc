@@ -1,0 +1,131 @@
+From 7731cc18bfd3e94e0e4f149af5e038445d3bd62f Mon Sep 17 00:00:00 2001
+From: Stanley Chu <yschu@nuvoton.com>
+Date: Tue, 25 Jun 2024 09:36:40 +0800
+Subject: [PATCH] i3c: send 7e before private read
+
+Signed-off-by: Stanley Chu <yschu@nuvoton.com>
+---
+ drivers/i3c/master/svc-i3c-master.c | 64 ++++++++++++++++++++++++-----
+ 1 file changed, 53 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/i3c/master/svc-i3c-master.c b/drivers/i3c/master/svc-i3c-master.c
+index 5c4e827da085..7547e71b71b9 100644
+--- a/drivers/i3c/master/svc-i3c-master.c
++++ b/drivers/i3c/master/svc-i3c-master.c
+@@ -1442,17 +1442,48 @@ static int svc_i3c_master_wait_for_complete(struct svc_i3c_master *master)
+ 	return count;
+ }
+ 
++static int svc_i3c_send_broadcast(struct svc_i3c_master *master)
++{
++	u32 reg;
++	int ret;
++
++	writel(SVC_I3C_MCTRL_REQUEST_START_ADDR |
++	       SVC_I3C_MCTRL_TYPE_I3C |
++	       SVC_I3C_MCTRL_IBIRESP_AUTO |
++	       SVC_I3C_MCTRL_DIR(0) |
++	       SVC_I3C_MCTRL_ADDR(I3C_BROADCAST_ADDR) |
++	       SVC_I3C_MCTRL_RDTERM(SVC_I3C_MAX_IBI_PAYLOAD_SIZE),
++	       master->regs + SVC_I3C_MCTRL);
++	ret = readl_poll_timeout(master->regs + SVC_I3C_MSTATUS, reg,
++				 SVC_I3C_MSTATUS_MCTRLDONE(reg), 0, 1000);
++	if (ret)
++		return -EIO;
++
++	if (SVC_I3C_MSTATUS_IBIWON(reg)) {
++		ret = svc_i3c_master_handle_ibiwon(master, true);
++		if (ret) {
++			dev_err(master->dev, "xfer read: handle ibi event fail, ret=%d\n", ret);
++			return -EIO;
++		}
++
++		/* Clear COMPLETE status of this IBI transaction */
++		writel(SVC_I3C_MINT_COMPLETE, master->regs + SVC_I3C_MSTATUS);
++		return 1;
++	}
++
++	return 0;
++}
++
+ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 			       bool rnw, unsigned int xfer_type, u8 addr,
+ 			       u8 *in, const u8 *out, unsigned int xfer_len,
+ 			       unsigned int *read_len, bool continued,
+-			       bool use_dma)
++			       bool use_dma, bool first)
+ {
+ 	u32 reg, rdterm = *read_len, mstatus;
+ 	int ret, i, count, space;
+ 	unsigned long flags;
+ 	unsigned long start;
+-	u32 ibiresp;
+ 
+ 	if (rdterm > SVC_I3C_MAX_RDTERM)
+ 		rdterm = SVC_I3C_MAX_RDTERM;
+@@ -1513,19 +1544,29 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		master->dma_xfer.rnw = rnw;
+ 		master->dma_xfer.end = !continued;
+ 		init_completion(&master->xfer_comp);
+-		svc_i3c_master_start_dma(master);
+ 	}
+ 
+ 	start = jiffies;
+-	/*
+-	 * IBI payload size may be larger than rdterm, use manual IBI response
+-	 * for read operation to set the proper RDTERM value in IBI ack request.
+-	 */
+-	ibiresp = rnw ? SVC_I3C_MCTRL_IBIRESP_MANUAL : SVC_I3C_MCTRL_IBIRESP_AUTO;
+ retry_start:
++	if (first && rnw) {
++		/* Send 7E first to avoid collision during master read */
++		ret = svc_i3c_send_broadcast(master);
++		if (ret < 0) {
++			dev_info(master->dev, "send 7e error\n");
++			goto unlock_exit;
++		}
++		if (time_after(jiffies, start + msecs_to_jiffies(1000))) {
++			dev_info(master->dev, "abnormal ibiwon events\n");
++			goto unlock_exit;
++		}
++		if (ret == 1)
++			goto retry_start;
++	}
++	if (use_dma)
++		svc_i3c_master_start_dma(master);
+ 	writel(SVC_I3C_MCTRL_REQUEST_START_ADDR |
+ 	       xfer_type |
+-	       ibiresp |
++	       SVC_I3C_MCTRL_IBIRESP_AUTO |
+ 	       SVC_I3C_MCTRL_DIR(rnw) |
+ 	       SVC_I3C_MCTRL_ADDR(addr) |
+ 	       SVC_I3C_MCTRL_RDTERM(rdterm),
+@@ -1541,7 +1582,7 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		/* Stop RX DMA to prevent it from receving the ibi payload */
+ 		if (use_dma && rnw)
+ 			svc_i3c_master_stop_dma(master);
+-		ret = svc_i3c_master_handle_ibiwon(master, !rnw);
++		ret = svc_i3c_master_handle_ibiwon(master, true);
+ 		if (ret) {
+ 			dev_err(master->dev, "xfer read: handle ibi event fail, ret=%d\n", ret);
+ 			goto unlock_exit;
+@@ -1558,6 +1599,7 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		writel(SVC_I3C_MINT_COMPLETE, master->regs + SVC_I3C_MSTATUS);
+ 		goto retry_start;
+ 	}
++
+ 	/* Use COMPLETE interrupt as notification of transfer completion */
+ 	if (use_dma)
+ 		svc_i3c_master_enable_interrupts(master, SVC_I3C_MINT_COMPLETE);
+@@ -1684,7 +1726,7 @@ static void svc_i3c_master_start_xfer_locked(struct svc_i3c_master *master)
+ 		ret = svc_i3c_master_xfer(master, cmd->rnw, xfer->type,
+ 					  cmd->addr, cmd->in, cmd->out,
+ 					  cmd->len, &cmd->read_len,
+-					  cmd->continued, cmd->use_dma);
++					  cmd->continued, cmd->use_dma, (i == 0));
+ 		if (ret)
+ 			break;
+ 	}
+-- 
+2.34.1
+

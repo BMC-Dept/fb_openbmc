@@ -24,4 +24,5 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0015-Update-partitions-for-increasing-RWFS.patch \
             file://0016-driver-i3c-increase-DMA-transfer-timeout.patch \
             file://0017-arm64-dts-nuvoton-yv4-gpio-input-enable-92-183-184-1.patch \
+            file://0018-i3c-send-7e-before-private-read.patch \
            "
