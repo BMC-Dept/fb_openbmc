@@ -1,0 +1,129 @@
+From ffaf7e2ac92e30aa53baa6e0516da63ad9c2e345 Mon Sep 17 00:00:00 2001
+From: cpchiang <cpchiang1@nuvoton.com>
+Date: Tue, 2 Jul 2024 15:16:31 +0800
+Subject: [PATCH] drivers: i3c: svc: add global dma mutex locked
+
+add global dma mutex locked.
+
+Signed-off-by: cpchiang <cpchiang1@nuvoton.com>
+---
+ drivers/i3c/master/svc-i3c-master.c | 34 ++++++++++++++++++++++-------
+ 1 file changed, 26 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/i3c/master/svc-i3c-master.c b/drivers/i3c/master/svc-i3c-master.c
+index 6cc4d5ba2527..c374aa1e9ec7 100644
+--- a/drivers/i3c/master/svc-i3c-master.c
++++ b/drivers/i3c/master/svc-i3c-master.c
+@@ -214,6 +214,8 @@
+ #define NPCM_GDMA_CDST(n)	(n * 0x20 + 0x14)
+ #define NPCM_GDMA_CTCNT(n)	(n * 0x20 + 0x18)
+ 
++static DEFINE_MUTEX(i3c_dma_mutex);
++
+ struct svc_i3c_cmd {
+ 	u8 addr;
+ 	bool rnw;
+@@ -531,6 +533,8 @@ static int svc_i3c_master_handle_ibi(struct svc_i3c_master *master,
+ 						0, 1000);
+ 	if (ret) {
+ 		dev_err(master->dev, "Timeout when polling for COMPLETE\n");
++		i3c_generic_ibi_recycle_slot(data->ibi_pool, slot);
++		slot = NULL;
+ 		goto handle_done;
+ 	}
+ 
+@@ -1463,6 +1467,8 @@ static int svc_i3c_master_wait_for_complete(struct svc_i3c_master *master)
+ 		dev_err(master->dev, "tx transfer cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_TCNT(DMA_CH_TX)));
+ 		dev_err(master->dev, "mdatactrl = 0x%2x\n", readl(master->regs + SVC_I3C_MDATACTRL));
+ 		dev_err(master->dev, "mdmactrl = 0x%2x\n", readl(master->regs + SVC_I3C_MDMACTRL));
++		dev_err(master->dev, "merrwarn = 0x%2x\n", readl(master->regs + SVC_I3C_MERRWARN));
++		dev_err(master->dev, "dma ch mux = 0x%2x\n", readl(master->dma_mux_regs));
+ 
+ 		return -ETIMEDOUT;
+ 	}
+@@ -1541,6 +1547,16 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 			rdterm = 2 + rdterm / 2;
+ 		master->hdr_mode = true;
+ 	}
++
++	/* Prevent fifo operation from delay by interrupt */
++	if (!use_dma)
++		local_irq_disable();
++	else
++		mutex_lock(&i3c_dma_mutex);
++
++	/* Prevent DMA start while IBI isr is running */
++	spin_lock_irqsave(&master->req_lock, flags);
++
+ 	/*
+ 	 * There is a chance that first tx data bit is lost when it
+ 	 * is not ready in FIFO right after address phase.
+@@ -1566,12 +1582,7 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		}
+ 		xfer_len -= count;
+ 	}
+-	/* Prevent fifo operation from delay by interrupt */
+-	if (!use_dma)
+-		local_irq_disable();
+ 
+-	/* Prevent DMA start while IBI isr is running */
+-	spin_lock_irqsave(&master->req_lock, flags);
+ 	if (use_dma) {
+ 		if (xfer_len > MAX_DMA_COUNT) {
+ 			dev_err(master->dev, "data is larger than buffer size (%d)\n",
+@@ -1593,11 +1604,11 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		/* Send 7E first to avoid collision during master read */
+ 		ret = svc_i3c_send_broadcast(master);
+ 		if (ret < 0) {
+-			dev_info(master->dev, "send 7e error\n");
++			dev_err(master->dev, "send 7e error\n");
+ 			goto unlock_exit;
+ 		}
+ 		if (time_after(jiffies, start + msecs_to_jiffies(1000))) {
+-			dev_info(master->dev, "abnormal ibiwon events\n");
++			dev_err(master->dev, "abnormal ibiwon events\n");
+ 			goto unlock_exit;
+ 		}
+ 		if (ret == 1)
+@@ -1605,8 +1616,10 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 
+ 		svc_i3c_master_set_sda_skew(master, 3);
+ 	}
++
+ 	if (use_dma)
+ 		svc_i3c_master_start_dma(master);
++
+ 	writel(SVC_I3C_MCTRL_REQUEST_START_ADDR |
+ 	       xfer_type |
+ 	       SVC_I3C_MCTRL_IBIRESP_AUTO |
+@@ -1638,7 +1651,7 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 			goto unlock_exit;
+ 		}
+ 		if (time_after(jiffies, start + msecs_to_jiffies(1000))) {
+-			dev_info(master->dev, "abnormal ibiwon events\n");
++			dev_err(master->dev, "abnormal ibiwon events\n");
+ 			goto unlock_exit;
+ 		}
+ 
+@@ -1699,6 +1712,8 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 
+ 	if (!use_dma)
+ 		local_irq_enable();
++	else
++		mutex_unlock(&i3c_dma_mutex);
+ 
+ 	return 0;
+ 
+@@ -1716,6 +1731,9 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 	svc_i3c_master_flush_fifo(master);
+ 	spin_unlock_irqrestore(&master->req_lock, flags);
+ 
++	if (use_dma)
++		mutex_unlock(&i3c_dma_mutex);
++
+ 	return ret;
+ }
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,198 @@
+From 04b29fc7491a4ccf882d8bb44c0b9d7e36e640bc Mon Sep 17 00:00:00 2001
+From: Stanley Chu <yschu@nuvoton.com>
+Date: Fri, 28 Jun 2024 15:07:33 +0800
+Subject: [PATCH] i3c: svc: add error handling
+
+Signed-off-by: Stanley Chu <yschu@nuvoton.com>
+---
+ drivers/i3c/master/svc-i3c-master.c | 69 +++++++++++++++++++++++------
+ 1 file changed, 56 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/i3c/master/svc-i3c-master.c b/drivers/i3c/master/svc-i3c-master.c
+index 7547e71b71b9..f48de8a32526 100644
+--- a/drivers/i3c/master/svc-i3c-master.c
++++ b/drivers/i3c/master/svc-i3c-master.c
+@@ -110,6 +110,7 @@
+ #define   SVC_I3C_MSTATUS_STATE_DAA(x) (SVC_I3C_MSTATUS_STATE(x) == 5)
+ #define   SVC_I3C_MSTATUS_STATE_IDLE(x) (SVC_I3C_MSTATUS_STATE(x) == 0)
+ #define   SVC_I3C_MSTATUS_STATE_SLVREQ(x) (SVC_I3C_MSTATUS_STATE(x) == 1)
++#define   SVC_I3C_MSTATUS_STATE_IBIACK(x) (SVC_I3C_MSTATUS_STATE(x) == 6)
+ #define   SVC_I3C_MSTATUS_BETWEEN(x) FIELD_GET(BIT(4), (x))
+ #define   SVC_I3C_MSTATUS_NACKED(x) FIELD_GET(BIT(5), (x))
+ #define   SVC_I3C_MSTATUS_IBITYPE(x) FIELD_GET(GENMASK(7, 6), (x))
+@@ -407,6 +408,11 @@ static void svc_i3c_master_flush_fifo(struct svc_i3c_master *master)
+ 	       master->regs + SVC_I3C_MDATACTRL);
+ }
+ 
++static void svc_i3c_master_flush_rx_fifo(struct svc_i3c_master *master)
++{
++	writel(SVC_I3C_MDATACTRL_FLUSHRB, master->regs + SVC_I3C_MDATACTRL);
++}
++
+ static void svc_i3c_master_reset_fifo_trigger(struct svc_i3c_master *master)
+ {
+ 	u32 reg;
+@@ -460,6 +466,12 @@ svc_i3c_master_dev_from_addr(struct svc_i3c_master *master,
+ 
+ static void svc_i3c_master_emit_stop(struct svc_i3c_master *master)
+ {
++	u32 reg = readl(master->regs + SVC_I3C_MSTATUS);
++
++	/* Do not emit stop in the IDLE or SLVREQ state */
++	if (SVC_I3C_MSTATUS_STATE_IDLE(reg) || SVC_I3C_MSTATUS_STATE_SLVREQ(reg))
++		return;
++
+ 	if (master->hdr_mode) {
+ 		writel(SVC_I3C_MCTRL_REQUEST_FORCE_EXIT, master->regs + SVC_I3C_MCTRL);
+ 		master->hdr_mode = false;
+@@ -486,10 +498,15 @@ static int svc_i3c_master_handle_ibi(struct svc_i3c_master *master,
+ 	int ret;
+ 	u8 *buf;
+ 
++	if (!data->ibi_pool) {
++		dev_err_ratelimited(master->dev, "No ibi pool for addr 0x%x\n",
++			master->addrs[data->index]);
++		goto no_ibi_pool;
++	}
+ 	slot = i3c_generic_ibi_get_free_slot(data->ibi_pool);
+ 	if (!slot) {
+ 		dev_err_ratelimited(master->dev, "No free ibi slot\n");
+-		return -ENOSPC;
++		goto no_ibi_pool;
+ 	}
+ 
+ 	slot->len = 0;
+@@ -521,12 +538,22 @@ static int svc_i3c_master_handle_ibi(struct svc_i3c_master *master,
+ 	master->ibi.tbq_slot = slot;
+ 
+ 	return ret;
++
++no_ibi_pool:
++	/* No ibi pool, drop the payload if received  */
++	readl_relaxed_poll_timeout(master->regs + SVC_I3C_MSTATUS, val,
++				   SVC_I3C_MSTATUS_COMPLETE(val) |
++				   SVC_I3C_MSTATUS_STATE_IDLE(val),
++				   0, 1000);
++	svc_i3c_master_flush_rx_fifo(master);
++	return -ENOSPC;
+ }
+ 
+ static void svc_i3c_master_ack_ibi(struct svc_i3c_master *master,
+ 				   bool mandatory_byte)
+ {
+ 	unsigned int ibi_ack_nack;
++	u32 reg;
+ 
+ 	ibi_ack_nack = SVC_I3C_MCTRL_REQUEST_IBI_ACKNACK;
+ 	if (mandatory_byte)
+@@ -536,13 +563,19 @@ static void svc_i3c_master_ack_ibi(struct svc_i3c_master *master,
+ 		ibi_ack_nack |= SVC_I3C_MCTRL_IBIRESP_ACK_WITHOUT_BYTE;
+ 
+ 	writel(ibi_ack_nack, master->regs + SVC_I3C_MCTRL);
++	readl_poll_timeout(master->regs + SVC_I3C_MSTATUS, reg,
++			   SVC_I3C_MSTATUS_MCTRLDONE(reg), 0, 1000);
+ }
+ 
+ static void svc_i3c_master_nack_ibi(struct svc_i3c_master *master)
+ {
++	u32 reg;
++
+ 	writel(SVC_I3C_MCTRL_REQUEST_IBI_ACKNACK |
+ 	       SVC_I3C_MCTRL_IBIRESP_NACK,
+ 	       master->regs + SVC_I3C_MCTRL);
++	readl_poll_timeout(master->regs + SVC_I3C_MSTATUS, reg,
++			   SVC_I3C_MSTATUS_MCTRLDONE(reg), 0, 1000);
+ }
+ 
+ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool autoibi)
+@@ -564,7 +597,8 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 	switch (ibitype) {
+ 	case SVC_I3C_MSTATUS_IBITYPE_IBI:
+ 		dev = svc_i3c_master_dev_from_addr(master, ibiaddr);
+-		if (!dev) {
++		/* Bypass the invalid ibi with address 0 */
++		if (!dev || ibiaddr == 0) {
+ 			svc_i3c_master_nack_ibi(master);
+ 			break;
+ 		}
+@@ -581,6 +615,12 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 		break;
+ 	case SVC_I3C_MSTATUS_IBITYPE_MASTER_REQUEST:
+ 		svc_i3c_master_nack_ibi(master);
++		status = readl(master->regs + SVC_I3C_MSTATUS);
++		/* Invalid event may be reported as MR request
++		 * and sometimes produce dummy bytes. Flush the garbage data.
++		 */
++		if (SVC_I3C_STATUS_RXPEND(status))
++			svc_i3c_master_flush_rx_fifo(master);
+ 		break;
+ 	default:
+ 		break;
+@@ -600,8 +640,10 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 		}
+ 
+ 		dev_err(master->dev, "svc_i3c_master_error in ibiwon\n");
+-		if (ibitype != SVC_I3C_MSTATUS_IBITYPE_IBI)
+-			svc_i3c_master_emit_stop(master);
++		/*
++		 * No need to emit stop here because the caller should do it
++		 * if return error
++		 */
+ 		ret = -EIO;
+ 		goto clear_ibiwon;
+ 	}
+@@ -609,13 +651,11 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 	/* Handle the non critical tasks */
+ 	switch (ibitype) {
+ 	case SVC_I3C_MSTATUS_IBITYPE_IBI:
+-		val = readl(master->regs + SVC_I3C_MSTATUS);
+ 		/*
+ 		 * Sometimes I3C HW returns to IDLE state after IBIRCV completed,
+ 		 * do not emit STOP in the idle state.
+ 		 */
+-		if (!SVC_I3C_MSTATUS_STATE_IDLE(val))
+-			svc_i3c_master_emit_stop(master);
++		svc_i3c_master_emit_stop(master);
+ 		if (dev && master->ibi.tbq_slot) {
+ 			i3c_master_queue_ibi(dev, master->ibi.tbq_slot);
+ 			master->ibi.tbq_slot = NULL;
+@@ -629,7 +669,6 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 		queue_work(master->base.wq, &master->hj_work);
+ 		break;
+ 	case SVC_I3C_MSTATUS_IBITYPE_MASTER_REQUEST:
+-		svc_i3c_master_emit_stop(master);
+ 		ret = -EOPNOTSUPP;
+ 	default:
+ 		break;
+@@ -663,19 +702,23 @@ static void svc_i3c_master_ibi_isr(struct svc_i3c_master *master)
+ 	ret = readl_relaxed_poll_timeout_atomic(master->regs + SVC_I3C_MSTATUS, val,
+ 					 SVC_I3C_MSTATUS_IBIWON(val), 0, 1000);
+ 	if (ret) {
+-		dev_err(master->dev, "Timeout when polling for IBIWON\n");
+ 		/* Cancle AUTOIBI if not started */
+ 		val = readl(master->regs + SVC_I3C_MCTRL);
+ 		if (SVC_I3C_MCTRL_REQUEST(val) == SVC_I3C_MCTRL_REQUEST_AUTO_IBI)
+ 			writel(0, master->regs + SVC_I3C_MCTRL);
++
++		dev_err(master->dev, "Timeout when polling for IBIWON\n");
+ 		svc_i3c_master_clear_merrwarn(master);
+-		mstatus = readl(master->regs + SVC_I3C_MSTATUS);
+-		if (!SVC_I3C_MSTATUS_STATE_IDLE(mstatus))
+-			svc_i3c_master_emit_stop(master);
++		val = readl(master->regs + SVC_I3C_MSTATUS);
++		/* In case IBIWON occurred at this moment, NACK the IBI */
++		if (SVC_I3C_MSTATUS_STATE_IBIACK(val))
++			svc_i3c_master_nack_ibi(master);
++		svc_i3c_master_emit_stop(master);
+ 		goto ibi_out;
+ 	}
+ 
+-	svc_i3c_master_handle_ibiwon(master, true);
++	if (svc_i3c_master_handle_ibiwon(master, true))
++		svc_i3c_master_emit_stop(master);
+ ibi_out:
+ 	spin_unlock(&master->req_lock);
+ }
+-- 
+2.34.1
+

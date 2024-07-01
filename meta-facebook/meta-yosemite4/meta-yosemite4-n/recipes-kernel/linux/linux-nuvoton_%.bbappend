@@ -25,4 +25,7 @@ SRC_URI += "file://yosemite4-common.cfg \
             file://0016-driver-i3c-increase-DMA-transfer-timeout.patch \
             file://0017-arm64-dts-nuvoton-yv4-gpio-input-enable-92-183-184-1.patch \
             file://0018-i3c-send-7e-before-private-read.patch \
+            file://0019-i3c-svc-add-error-handling.patch \
+            file://0020-i3c-add-SDA-skew-before-private-read.patch \
+            file://0021-drivers-i3c-svc-add-global-dma-mutex-locked.patch \
            "

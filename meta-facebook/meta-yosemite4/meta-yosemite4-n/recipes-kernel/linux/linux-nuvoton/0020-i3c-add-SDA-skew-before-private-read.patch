@@ -1,0 +1,114 @@
+From 9410dd5ed0d62fe7b42f9003852eb6d918ed8974 Mon Sep 17 00:00:00 2001
+From: cpchiang <cpchiang1@nuvoton.com>
+Date: Fri, 28 Jun 2024 16:41:10 +0800
+Subject: [PATCH] i3c: add SDA skew before private read
+
+1. add SDA skew before private read
+2. add DMA debug messages
+
+Signed-off-by: cpchiang <cpchiang1@nuvoton.com>
+---
+ drivers/i3c/master/svc-i3c-master.c | 36 +++++++++++++++++++++++++++--
+ 1 file changed, 34 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/i3c/master/svc-i3c-master.c b/drivers/i3c/master/svc-i3c-master.c
+index 2662d6096baa..6cc4d5ba2527 100644
+--- a/drivers/i3c/master/svc-i3c-master.c
++++ b/drivers/i3c/master/svc-i3c-master.c
+@@ -363,6 +363,13 @@ static bool svc_i3c_master_error(struct svc_i3c_master *master)
+ 			"Error condition: MSTATUS 0x%08x, MERRWARN 0x%08x\n",
+ 			mstatus, merrwarn);
+ 
++		dev_err(master->dev, "rx ctrl = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTL(DMA_CH_RX)));
++		dev_err(master->dev, "rx current cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTCNT(DMA_CH_RX)));
++		dev_err(master->dev, "rx transfer cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_TCNT(DMA_CH_RX)));
++		dev_err(master->dev, "tx ctrl = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTL(DMA_CH_TX)));
++		dev_err(master->dev, "tx current cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTCNT(DMA_CH_TX)));
++		dev_err(master->dev, "tx transfer cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_TCNT(DMA_CH_TX)));
++
+ 		return true;
+ 	}
+ 
+@@ -485,7 +492,8 @@ static void svc_i3c_master_emit_stop(struct svc_i3c_master *master)
+ }
+ 
+ static int svc_i3c_master_handle_ibi(struct svc_i3c_master *master,
+-				     struct i3c_dev_desc *dev)
++				     struct i3c_dev_desc *dev,
++				     unsigned int ibiaddr)
+ {
+ 	struct svc_i3c_i2c_dev_data *data = i3c_dev_get_master_data(dev);
+ 	struct i3c_ibi_slot *slot;
+@@ -494,6 +502,11 @@ static int svc_i3c_master_handle_ibi(struct svc_i3c_master *master,
+ 	int ret;
+ 	u8 *buf;
+ 
++	if (!data) {
++		dev_err_ratelimited(master->dev, "No data for addr 0x%x\n", ibiaddr);
++		goto no_ibi_pool;
++	}
++
+ 	if (!data->ibi_pool) {
+ 		dev_err_ratelimited(master->dev, "No ibi pool for addr 0x%x\n",
+ 			master->addrs[data->index]);
+@@ -595,6 +608,7 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 		dev = svc_i3c_master_dev_from_addr(master, ibiaddr);
+ 		/* Bypass the invalid ibi with address 0 */
+ 		if (!dev || ibiaddr == 0) {
++			dev_err(master->dev, "unknow ibi addr = 0x%x\n", ibiaddr);
+ 			svc_i3c_master_nack_ibi(master);
+ 			break;
+ 		}
+@@ -604,7 +618,7 @@ static int svc_i3c_master_handle_ibiwon(struct svc_i3c_master *master, bool auto
+ 			else
+ 				svc_i3c_master_ack_ibi(master, false);
+ 		}
+-		svc_i3c_master_handle_ibi(master, dev);
++		svc_i3c_master_handle_ibi(master, dev, ibiaddr);
+ 		break;
+ 	case SVC_I3C_MSTATUS_IBITYPE_HOT_JOIN:
+ 		svc_i3c_master_ack_ibi(master, false);
+@@ -1441,6 +1455,15 @@ static int svc_i3c_master_wait_for_complete(struct svc_i3c_master *master)
+ 	if (!ret) {
+ 		dev_err(master->dev, "DMA transfer timeout (%s)\n", xfer->rnw ? "Read" : "write");
+ 		dev_err(master->dev, "mstatus = 0x%02x\n", readl(master->regs + SVC_I3C_MSTATUS));
++		dev_err(master->dev, "rx ctrl = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTL(DMA_CH_RX)));
++		dev_err(master->dev, "rx current cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTCNT(DMA_CH_RX)));
++		dev_err(master->dev, "rx transfer cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_TCNT(DMA_CH_RX)));
++		dev_err(master->dev, "tx ctrl = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTL(DMA_CH_TX)));
++		dev_err(master->dev, "tx current cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_CTCNT(DMA_CH_TX)));
++		dev_err(master->dev, "tx transfer cnt = 0x%2x\n", readl(master->dma_regs + NPCM_GDMA_TCNT(DMA_CH_TX)));
++		dev_err(master->dev, "mdatactrl = 0x%2x\n", readl(master->regs + SVC_I3C_MDATACTRL));
++		dev_err(master->dev, "mdmactrl = 0x%2x\n", readl(master->regs + SVC_I3C_MDMACTRL));
++
+ 		return -ETIMEDOUT;
+ 	}
+ 
+@@ -1579,6 +1602,8 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 		}
+ 		if (ret == 1)
+ 			goto retry_start;
++
++		svc_i3c_master_set_sda_skew(master, 3);
+ 	}
+ 	if (use_dma)
+ 		svc_i3c_master_start_dma(master);
+@@ -1595,8 +1620,15 @@ static int svc_i3c_master_xfer(struct svc_i3c_master *master,
+ 	if (ret)
+ 		goto unlock_exit;
+ 
++	if (first && rnw)
++		svc_i3c_master_set_sda_skew(master, 0);
++
+ 	mstatus = readl(master->regs + SVC_I3C_MSTATUS);
+ 	if (SVC_I3C_MSTATUS_IBIWON(mstatus)) {
++
++		if (first && rnw)
++			dev_err(master->dev, "repeat start but ibiwon, mstatus = 0x%x\n", mstatus);
++
+ 		/* Stop RX DMA to prevent it from receving the ibi payload */
+ 		if (use_dma && rnw)
+ 			svc_i3c_master_stop_dma(master);
+-- 
+2.34.1
+
