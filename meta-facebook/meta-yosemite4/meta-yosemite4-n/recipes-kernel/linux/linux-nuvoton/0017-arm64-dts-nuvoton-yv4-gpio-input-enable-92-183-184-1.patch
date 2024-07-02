@@ -1,0 +1,71 @@
+From 3cff3f9c3b0229fb66878224455b0ad39b9f1c65 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Tue, 2 Jul 2024 17:24:28 +0800
+Subject: [PATCH] arm64: dts: nuvoton: yv4: gpio input enable 92, 183, 184, 189
+
+Set input for NIC present pin.
+---
+ .../dts/nuvoton/nuvoton-npcm845-yosemite4.dts | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+index b97e758a38d1..48af35e9e23b 100644
+--- a/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
++++ b/arch/arm64/boot/dts/nuvoton/nuvoton-npcm845-yosemite4.dts
+@@ -1766,6 +1766,7 @@ &gpio24o_pins
+ 			&gpi35_pins
+ 			&gpi36_pins
+ 			&gpio57_pins
++			&gpio92_pins
+ 			&gpio93_pins
+ 			&gpio96o_pins
+ 			&gpio120ol_pins
+@@ -1775,8 +1776,11 @@ &gpio126o_pins
+ 			&gpio127_pins
+ 			&gpio159_pins
+ 			&gpio162_pins
++			&gpio183_pins
++			&gpio184_pins
+ 			&gpio1836_pins
+ 			&gpio1889_pins
++			&gpio189_pins
+ 			&gpio190_pins
+ 			&gpio194ol_pins
+ 			&gpio196ol_pins
+@@ -1971,6 +1975,11 @@ gpio57_pins: gpio57-pins {
+ 		bias-disable;
+ 		input-enable;
+ 	};
++	gpio92_pins: gpio92-pins {
++		pins = "GPIO92/R2_MDIO/CP1_GPIO7/TP_GPIO1";
++		bias-disable;
++		input-enable;
++	};
+ 	gpio93_pins: gpio93-pins {
+ 		pins = "GPIO93/GA20/SMB5D_SCL";
+ 		bias-disable;
+@@ -2016,6 +2025,21 @@ gpio162_pins: gpio162-pins {
+ 		bias-disable;
+ 		input-enable;
+ 	};
++	gpio183_pins: gpio183-pins {
++		pins = "GPIO183/SPI3_SEL";
++		bias-disable;
++		input-enable;
++	};
++	gpio184_pins: gpio184-pins {
++		pins = "GPIO184/SPI3_D0/STRAP13";
++		bias-disable;
++		input-enable;
++	};
++	gpio189_pins: gpio189-pins {
++		pins = "GPIO189/SPI3_D3/SPI3_nCS3";
++		bias-disable;
++		input-enable;
++	};
+ 	gpio190_pins: gpio190-pins {
+ 		pins = "GPIO190/nPRD_SMI";
+ 		bias-disable;
+-- 
+2.25.1
+
