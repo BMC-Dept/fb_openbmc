@@ -1,0 +1,65 @@
+From bf74e3a79a79627d9f059b88ad3d23f48c93fe28 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Thu, 11 Jul 2024 16:28:57 +0800
+Subject: [PATCH] configuration: yv4: set mctp i3c information for SD and WF
+
+---
+ configurations/yosemite4_sentineldome.json |  5 +++--
+ configurations/yosemite4_wailuafalls.json  | 15 +++++++++------
+ 2 files changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/configurations/yosemite4_sentineldome.json b/configurations/yosemite4_sentineldome.json
+index c55e476..8722633 100644
+--- a/configurations/yosemite4_sentineldome.json
++++ b/configurations/yosemite4_sentineldome.json
+@@ -1,8 +1,9 @@
+ {
+     "Exposes": [
+         {
+-            "Address": "0x20",
+-            "Bus": "$bus % 16",
++            "Address": ["7", "236", "128", "1", "0", "$bus % 16 * 5"],
++            "Bus": "$bus / 4 - 4",
++            "Class": "I3C",
+             "EndpointId": "$bus % 15 * 10",
+             "Name": "BIC",
+             "Type": "MCTPEndpoint"
+diff --git a/configurations/yosemite4_wailuafalls.json b/configurations/yosemite4_wailuafalls.json
+index d7aa632..55e6994 100644
+--- a/configurations/yosemite4_wailuafalls.json
++++ b/configurations/yosemite4_wailuafalls.json
+@@ -1,22 +1,25 @@
+ {
+     "Exposes": [
+         {
+-            "Address": "0x20",
+-            "Bus": "$bus % 16",
++            "Address": ["7", "236", "128", "1", "0", "$bus % 16 * 5"],
++            "Bus": "$bus / 4 - 4",
++            "Class": "I3C",
+             "EndpointId": "$bus % 15 * 10 + 2",
+             "Name": "BIC",
+             "Type": "MCTPEndpoint"
+         },
+         {
+-            "Address": "0x20",
+-            "Bus": "$bus % 16",
++            "Address": ["7", "236", "128", "1", "0", "$bus % 16 * 5"],
++            "Bus": "$bus / 4 - 4",
++            "Class": "I3C",
+             "EndpointId": "$bus % 15 * 10 + 4",
+             "Name": "CXL1",
+             "Type": "MCTPEndpoint"
+         },
+         {
+-            "Address": "0x20",
+-            "Bus": "$bus % 16",
++            "Address": ["7", "236", "128", "1", "0", "$bus % 16 * 5"],
++            "Bus": "$bus / 4 - 4",
++            "Class": "I3C",
+             "EndpointId": "$bus % 15 * 10 + 5",
+             "Name": "CXL2",
+             "Type": "MCTPEndpoint"
+-- 
+2.25.1
+

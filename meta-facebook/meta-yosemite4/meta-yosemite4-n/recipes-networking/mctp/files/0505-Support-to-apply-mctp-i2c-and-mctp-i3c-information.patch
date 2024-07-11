@@ -1,0 +1,251 @@
+From ff087fa3a3a098a86ef28bccb118a0fe50ec0e16 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Wed, 10 Jul 2024 16:51:38 +0800
+Subject: [PATCH] Support to apply mctp-i2c and mctp-i3c information
+
+---
+ src/mctpd.c | 121 ++++++++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 99 insertions(+), 22 deletions(-)
+
+diff --git a/src/mctpd.c b/src/mctpd.c
+index 1af76a9..6bd70f0 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -1720,6 +1720,7 @@ static int message_read_hwaddr(sd_bus_message *call, dest_phys* dest)
+ static int setup_static_eid(ctx *ctx)
+ {
+ 	char **object_paths;
++	char *bmc_interface;
+ 	int net;
+ 	dest_phys desti = {0}, *dest = &desti;
+ 	peer *peer = NULL;
+@@ -1770,24 +1771,45 @@ static int setup_static_eid(ctx *ctx)
+ 
+ 		message = sd_bus_message_unref(message);
+ 
++		// Read BMC interface from Class
++		rc = sd_bus_get_property(ctx->bus,
++			OPENBMC_ENTITY_MANAGER, object_paths[i],
++			OPENBMC_MCTP_CONFIG_IFACE, "Class",
++			&error, &message, "s");
++		if (rc < 0) {
++			warnx("Failed to get Class from %s. Error:%s", object_paths[i],
++				error.message);
++			break;
++		}
++		sd_bus_message_read(message, "s", &bmc_interface);
++
++		message = sd_bus_message_unref(message);
++
++		// Read Address
+ 		rc = sd_bus_get_property(ctx->bus,
+ 			OPENBMC_ENTITY_MANAGER, object_paths[i],
+ 			OPENBMC_MCTP_CONFIG_IFACE, "Address",
+-			&error, &message, "t");
++			&error, &message, "at");
+ 		if (rc < 0) {
+ 			warnx("Failed to get address from %s. Error:%s", object_paths[i],
+ 				error.message);
+ 			break;
+ 		}
+ 
+-		sd_bus_message_read(message, "t", &data);
++		const void* msg_hwaddr = NULL;
++		size_t msg_hwaddr_len;
++		sd_bus_message_read_array(message, 't', &msg_hwaddr, &msg_hwaddr_len);
++		const uint64_t* hwaddr_array = (const uint64_t*)msg_hwaddr;
+ 
+-		size_t size = sizeof(uint8_t);
+-		memcpy(dest->hwaddr, &data, size);
+-		dest->hwaddr_len = size;
++		memset(dest->hwaddr, 0x0, MAX_ADDR_LEN);
++		for (int i = 0; i < msg_hwaddr_len; ++i) {
++			dest->hwaddr[i] = (uint8_t)hwaddr_array[i] & 0xFF;
++		}
++		dest->hwaddr_len = msg_hwaddr_len / sizeof(uint64_t);
+ 
+ 		message = sd_bus_message_unref(message);
+ 
++		// Read Bus
+ 		rc = sd_bus_get_property(ctx->bus,
+ 			OPENBMC_ENTITY_MANAGER, object_paths[i],
+ 			OPENBMC_MCTP_CONFIG_IFACE, "Bus",
+@@ -1800,8 +1822,11 @@ static int setup_static_eid(ctx *ctx)
+ 		uint64_t bus = 0;
+ 		char ifname[MAX_STRING_SIZE];
+ 		sd_bus_message_read(message, "t", &bus);
+-		// TODO: handle different interface name
+-		sprintf(ifname, "mctpi2c%ld", bus);
++		if (strcmp(bmc_interface, "I3C") == 0) {
++			sprintf(ifname, "mctpi3c%ld", bus);
++		} else {
++			sprintf(ifname, "mctpi2c%ld", bus);
++		}
+ 
+ 		dest->ifindex = mctp_nl_ifindex_byname(ctx->nl, ifname);
+ 		if (dest->ifindex <= 0) {
+@@ -2135,6 +2160,7 @@ static int method_setup_endpoint_by_config_path(sd_bus_message *call, void *data
+ 	int net;
+ 	ctx *ctx = data;
+ 	const char *object_path = NULL;
++	const char *bmc_interface = NULL;
+ 	char ifname[MAX_STRING_SIZE];
+ 	char parent_path[MAX_STRING_SIZE];
+ 	char *peer_path;
+@@ -2151,6 +2177,7 @@ static int method_setup_endpoint_by_config_path(sd_bus_message *call, void *data
+ 	if (rc < 0)
+ 		goto err;
+ 
++	// Read EndpointId
+ 	rc = sd_bus_get_property(ctx->bus,
+ 		OPENBMC_ENTITY_MANAGER, object_path,
+ 		OPENBMC_MCTP_CONFIG_IFACE, "EndpointId",
+@@ -2172,24 +2199,47 @@ static int method_setup_endpoint_by_config_path(sd_bus_message *call, void *data
+ 
+ 	message = sd_bus_message_unref(message);
+ 
++	// Read BMC interface from Class
++	rc = sd_bus_get_property(ctx->bus,
++		OPENBMC_ENTITY_MANAGER, object_path,
++		OPENBMC_MCTP_CONFIG_IFACE, "Class",
++		&error, &message, "s");
++	if (rc < 0) {
++		warnx("Failed to get Class from %s. Error:%s", object_path,
++			error.message);
++		goto err;
++	}
++	rc = sd_bus_message_read(message, "s", &bmc_interface);
++	if (rc < 0)
++		goto err;
++
++	message = sd_bus_message_unref(message);
++
++	// Read Address
+ 	rc = sd_bus_get_property(ctx->bus,
+ 		OPENBMC_ENTITY_MANAGER, object_path,
+ 		OPENBMC_MCTP_CONFIG_IFACE, "Address",
+-		&error, &message, "t");
++		&error, &message, "at");
+ 	if (rc < 0) {
+ 		warnx("Failed to get address from %s. Error:%s", object_path,
+ 			error.message);
+ 		goto err;
+ 	}
+ 
+-	sd_bus_message_read(message, "t", &data);
++	const void* msg_hwaddr = NULL;
++	size_t msg_hwaddr_len;
++	sd_bus_message_read_array(message, 't', &msg_hwaddr, &msg_hwaddr_len);
++	const uint64_t* hwaddr_array = (const uint64_t*)msg_hwaddr;
+ 
+-	size_t size = sizeof(uint8_t);
+-	memcpy(dest->hwaddr, &data, size);
+-	dest->hwaddr_len = size;
++	memset(dest->hwaddr, 0x0, MAX_ADDR_LEN);
++	for (int i = 0; i < msg_hwaddr_len; ++i) {
++		dest->hwaddr[i] = (uint8_t)hwaddr_array[i] & 0xFF;
++	}
++	dest->hwaddr_len = msg_hwaddr_len / sizeof(uint64_t);
+ 
+ 	message = sd_bus_message_unref(message);
+ 
++	// Read Bus
+ 	rc = sd_bus_get_property(ctx->bus,
+ 		OPENBMC_ENTITY_MANAGER, object_path,
+ 		OPENBMC_MCTP_CONFIG_IFACE, "Bus",
+@@ -2201,8 +2251,12 @@ static int method_setup_endpoint_by_config_path(sd_bus_message *call, void *data
+ 	}
+ 	uint64_t bus = 0;
+ 	sd_bus_message_read(message, "t", &bus);
+-	// TODO: handle different interface name
+-	sprintf(ifname, "mctpi2c%ld", bus);
++
++	if (strcmp(bmc_interface, "I3C") == 0) {
++		sprintf(ifname, "mctpi3c%ld", bus);
++	} else {
++		sprintf(ifname, "mctpi2c%ld", bus);
++	}
+ 
+ 	dest->ifindex = mctp_nl_ifindex_byname(ctx->nl, ifname);
+ 	if (dest->ifindex <= 0) {
+@@ -3131,12 +3185,13 @@ static int on_interface_added(sd_bus_message *m, void *userdata, sd_bus_error *r
+ 			sd_bus_message_skip(m, "a{sv}");
+ 		} else {
+ 			sd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "{sv}");
+-			uint64_t data;
++			uint64_t data, bus;
+ 			int net;
+ 			mctp_eid_t eid;
+ 			dest_phys desti = {0}, *dest = &desti;
+ 			peer *peer = NULL;
+ 			char ifname[MAX_STRING_SIZE];
++			char *bmc_interface;
+ 			while (!sd_bus_message_at_end(m, false)) {
+ 				const char *key;
+ 				rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv");
+@@ -3154,13 +3209,18 @@ static int on_interface_added(sd_bus_message *m, void *userdata, sd_bus_error *r
+ 					if (rc < 0) {
+ 						return rc;
+ 					}
+-					rc = sd_bus_message_read(m, "t", &data);
++					const void* msg_hwaddr = NULL;
++					size_t msg_hwaddr_len;
++					rc = sd_bus_message_read_array(m, 't', &msg_hwaddr, &msg_hwaddr_len);
+ 					if (rc < 0) {
+ 						return rc;
+ 					}
+-					size_t size = sizeof(uint8_t);
+-					memcpy(dest->hwaddr, &data, size);
+-					dest->hwaddr_len = size;
++					const uint64_t* hwaddr_array = (const uint64_t*)msg_hwaddr;
++					memset(dest->hwaddr, 0x0, MAX_ADDR_LEN);
++					for (int i = 0; i < msg_hwaddr_len; ++i) {
++						dest->hwaddr[i] = (uint8_t)hwaddr_array[i] & 0xFF;
++					}
++					dest->hwaddr_len = msg_hwaddr_len / sizeof(uint64_t);
+ 					rc = sd_bus_message_exit_container(m); //exit variant
+ 					if (rc < 0) {
+ 						return rc;
+@@ -3170,12 +3230,23 @@ static int on_interface_added(sd_bus_message *m, void *userdata, sd_bus_error *r
+ 					if (rc < 0) {
+ 						return rc;
+ 					}
+-					rc = sd_bus_message_read(m, "t", &data);
++					rc = sd_bus_message_read(m, "t", &bus);
++					if (rc < 0) {
++						return rc;
++					}
++					rc = sd_bus_message_exit_container(m); //exit variant
++					if (rc < 0) {
++						return rc;
++					}
++				} else if (strcmp(key, "Class") == 0) {
++					rc = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, NULL);
++					if (rc < 0) {
++						return rc;
++					}
++					rc = sd_bus_message_read(m, "s", &bmc_interface);
+ 					if (rc < 0) {
+ 						return rc;
+ 					}
+-					// TODO: handle different interface name
+-					sprintf(ifname, "mctpi2c%ld", data);
+ 					rc = sd_bus_message_exit_container(m); //exit variant
+ 					if (rc < 0) {
+ 						return rc;
+@@ -3208,6 +3279,12 @@ static int on_interface_added(sd_bus_message *m, void *userdata, sd_bus_error *r
+ 				return rc;
+ 			}
+ 
++			if (strcmp(bmc_interface, "I3C") == 0) {
++				sprintf(ifname, "mctpi3c%ld", bus);
++			} else {
++				sprintf(ifname, "mctpi2c%ld", bus);
++			}
++
+ 			dest->ifindex = mctp_nl_ifindex_byname(ctx->nl, ifname);
+ 			if (dest->ifindex <= 0) {
+ 				warnx("Unknown ifname: %s", ifname);
+-- 
+2.25.1
+

@@ -6,4 +6,5 @@ SRC_URI += " \
     file://0003-configurations-Revise-the-BRCM-NIC-sensor-name.patch \
     file://0004-schemas-Add-CheckHysterWithSetpt-for-PID.patch \
     file://0005-configuration-add-fan-table-in-yosemite4-config-file.patch \
+    file://0006-configuration-yv4-set-mctp-i3c-information-for-SD-an.patch \
 "
