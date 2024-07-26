@@ -16,12 +16,19 @@ SRC_URI += " \
     file://0010-Support-OEM-META-command-for-Event-Logs-from-BIC.patch \
     file://0011-platform-mc-add-more-exception-type.patch \
     file://0012-Support-OEM-META-command-for-power-control.patch \
+    file://0001-fix-bios-event-issue.patch \
+    file://pldmd.service \
 "
+
+SYSTEMD_SERVICE:${PN} += " \
+    pldmd.service \
+    "
 
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 do_install:append() {
     install -d ${D}/usr/share/pldm
     install -m 0444 ${WORKDIR}/host_eid ${D}/usr/share/pldm
+    install -m 0644 ${WORKDIR}/pldmd.service ${D}${systemd_system_unitdir}
 }
 

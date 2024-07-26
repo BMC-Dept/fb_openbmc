@@ -1,0 +1,26 @@
+From 32d5aced5f70b181a1d28c93c48c76bdaacc6538 Mon Sep 17 00:00:00 2001
+From: PeterHo-wiwynn <Peter_MH_Ho@wiwynn.com>
+Date: Fri, 26 Jul 2024 10:54:17 +0800
+Subject: [PATCH] fix bios event issue
+
+---
+ pldmd/pldmd.cpp | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
+index 0025b28..0ba538c 100644
+--- a/pldmd/pldmd.cpp
++++ b/pldmd/pldmd.cpp
+@@ -312,7 +312,8 @@ int main(int argc, char** argv)
+     auto platformHandler = std::make_unique<platform::Handler>(
+         &dbusHandler, hostEID, &instanceIdDb, PDR_JSONS_DIR, pdrRepo.get(),
+         hostPDRHandler.get(), dbusToPLDMEventHandler.get(), fruHandler.get(),
+-        platformConfigHandler.get(), &reqHandler, event, true);
++        platformConfigHandler.get(), &reqHandler, event, true,
++        addOnEventHandlers);
+ 
+     auto biosHandler = std::make_unique<bios::Handler>(
+         pldmTransport.getEventSource(), hostEID, &instanceIdDb, &reqHandler,
+-- 
+2.25.1
+
