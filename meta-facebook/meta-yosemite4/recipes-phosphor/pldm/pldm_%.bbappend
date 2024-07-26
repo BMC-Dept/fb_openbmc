@@ -16,23 +16,12 @@ SRC_URI += " \
     file://0010-Support-OEM-META-command-for-Event-Logs-from-BIC.patch \
     file://0011-platform-mc-add-more-exception-type.patch \
     file://0012-Support-OEM-META-command-for-power-control.patch \
-    file://pldm-restart.sh \
-    file://pldm-slow-restart.service \
 "
 
-FILES:${PN}:append = " \
-    ${systemd_system_unitdir}/pldm-restart.sh \
-"
-
-SYSTEMD_SERVICE:${PN} += " \
-    pldm-slow-restart.service \
-    "
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 do_install:append() {
     install -d ${D}/usr/share/pldm
     install -m 0444 ${WORKDIR}/host_eid ${D}/usr/share/pldm
-    install -m 0755 ${WORKDIR}/pldm-restart.sh ${D}${datadir}/pldm/
-    install -m 0644 ${WORKDIR}/pldm-slow-restart.service ${D}${systemd_system_unitdir}
 }
 
