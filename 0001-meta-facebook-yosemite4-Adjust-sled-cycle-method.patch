@@ -1,0 +1,177 @@
+From 91595927b083f092bff35514de70776093df2f4f Mon Sep 17 00:00:00 2001
+From: Marshall Zhan <marshall.zhan.wiwynn@gmail.com>
+Date: Wed, 7 Aug 2024 11:13:56 +0800
+Subject: [PATCH] meta-facebook: yosemite4: Adjust sled cycle method
+
+Use FRU information to distinguish different sled cycle methods.
+
+PVT or after : notify CPLD by GPIOO7
+Before PVT : notify CPLD by CPLD IO expender
+
+Tested:
+Did sled cycle on EVT, DVT an PVT system.
+---
+ .../phosphor-state-manager/chassis-powercycle | 23 +++++++++++++++++--
+ .../plat-svc/files/yosemite4-early-sys-init   | 18 +--------------
+ .../plat-svc/files/yosemite4-schematic-init   | 20 +++++++++++++---
+ .../files/yosemite4-schematic-init.service    |  4 ++--
+ .../files/yosemite4-common-functions          |  7 ++++++
+ 5 files changed, 48 insertions(+), 24 deletions(-)
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+index f31f3d4fe07..75c28a364e6 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+@@ -5,6 +5,9 @@
+ # Provide source directive to shellcheck.
+ # shellcheck source=meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
+ source /usr/libexec/phosphor-state-manager/power-cmd
++# shellcheck source=meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
++source /usr/libexec/yosemite4-common-functions
++
+ #IO 0:7 input port for showing slot 1:8 power status
+ #IO 8:16 output port for controlling slot 1:8 power status
+ CHASSIS_ID=$1
+@@ -12,9 +15,14 @@ IO_EXP_SLOT_PWR_STATUS=$((CHASSIS_ID - 1))
+ IO_EXP_SLOT_PWR_CTRL=$((IO_EXP_SLOT_PWR_STATUS + 8))
+ IO_EXP_SLED_CYCLE=12
+ #IO_EXP_BIC_PWR_CTRL=32
++MANAGEMENT_BOARD_VERSION=$(get_product_version Management_Board)
+ 
+ GPIOCHIP_IO_EXP_SLOT_PWR_CTRL=$(basename "/sys/bus/i2c/devices/$SPIDER_BOARD_IO_EXP_BUS_NUM-00$IO_EXP_SLOT_PWR_CTRL_ADDR/"*gpiochip*)
+-GPIOCHIP_IO_EXP_SLED_PWR_CTRL=$(basename "/sys/bus/i2c/devices/$MANAGEMENT_BOARD_IO_EXP_BUS_NUM-00$IO_EXP_SLED_PWR_CTRL_ADDR/"*gpiochip*)
++if [ -z "$MANAGEMENT_BOARD_VERSION" ]; then
++    echo "Failed to check management board fru info, sled cycle keep default setting"
++elif [ "$MANAGEMENT_BOARD_VERSION" = "DVT" ] || [ "$MANAGEMENT_BOARD_VERSION" = "EVT" ]; then
++    GPIOCHIP_IO_EXP_SLED_PWR_CTRL=$(basename "/sys/bus/i2c/devices/$MANAGEMENT_BOARD_IO_EXP_BUS_NUM-00$IO_EXP_SLED_PWR_CTRL_ADDR/"*gpiochip*)
++fi
+ #GPIOCHIP_IO_EXP_BIC_PWR_CTRL=$(basename "/sys/bus/i2c/devices/$IO_EXP_SLOT_PWR_STATUS-00$IO_EXP_BIC_PWR_CTRL_ADDR/"*gpiochip*)
+ 
+ chassis-power-cycle()
+@@ -57,10 +65,21 @@ chassis-power-cycle()
+     exit 1;
+ }
+ 
++sled-cycle()
++{
++    if [ -z "$MANAGEMENT_BOARD_VERSION" ]; then
++        set_gpio FM_BMC_SLED_CYCLE_R 1
++    elif [ "$MANAGEMENT_BOARD_VERSION" = "DVT" ] || [ "$MANAGEMENT_BOARD_VERSION" = "EVT" ]; then
++        gpio_set "$GPIOCHIP_IO_EXP_SLED_PWR_CTRL" "$IO_EXP_SLED_CYCLE"=1
++    else
++        set_gpio FM_BMC_SLED_CYCLE_R 1
++    fi
++}
++
+ if [ "$1" == 0 ]
+ then
+     echo "Starting sled cycle..."
+-    if ! gpio_set "$GPIOCHIP_IO_EXP_SLED_PWR_CTRL" "$IO_EXP_SLED_CYCLE"=1
++    if ! sled-cycle
+     then
+         echo "Failed to do sled cycle"
+     fi
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
+index ec8ed1fce31..9acc33f92f8 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
+@@ -11,23 +11,6 @@ enable_all_fan_input()
+     done
+ }
+ 
+-# probe devices behind mux for management board cpld
+-
+-rev_id_gpiochip=$(basename "/sys/bus/i2c/devices/13-0020/"*gpiochip*)
+-rev_id_bit0=$(gpioget "$rev_id_gpiochip" 0)
+-rev_id_bit1=$(gpioget "$rev_id_gpiochip" 1)
+-rev_id_bit2=$(gpioget "$rev_id_gpiochip" 2)
+-rev_id_bit3=$(gpioget "$rev_id_gpiochip" 3)
+-
+-# Default devicetree was set for EVT and later, only POC will do following manual devices' probing
+-if [ "$rev_id_bit0" -eq 0 ] && [ "$rev_id_bit1" -eq 0 ] && [ "$rev_id_bit2" -eq 0 ] && [ "$rev_id_bit3" -eq 0 ]
+-then
+-    echo 24c128 "0x50" > /sys/bus/i2c/devices/i2c-12/new_device
+-    echo 24c64 "0x54" > /sys/bus/i2c/devices/i2c-12/new_device
+-    echo tmp75 "0x48" > /sys/bus/i2c/devices/i2c-12/new_device
+-    echo nct3018y "0x6f" > /sys/bus/i2c/devices/i2c-12/new_device
+-fi
+-
+ # set initial value for GPIO output pins
+ set_gpio EN_P5V_USB_CPLD_R    1
+ set_gpio EN_NIC0_POWER_BMC_R  1
+@@ -39,6 +22,7 @@ set_gpio RST_USB_HUB_R_N      1
+ set_gpio FM_BMC_READY_R2      1
+ set_gpio SPI_LOCK_REQ_BMC_N   1
+ set_gpio EN_P3V_BAT_SCALED_R  0
++set_gpio FM_BMC_SLED_CYCLE_R  0
+ 
+ set_gpio NIC0_MAIN_PWR_EN 1
+ set_gpio NIC1_MAIN_PWR_EN 1
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init
+index a68839e2391..ff17e07e6c5 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init
+@@ -2,14 +2,28 @@
+ # shellcheck source=meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
+ source /usr/libexec/yosemite4-common-functions
+ 
++# wait for entity manager
++mapper wait /xyz/openbmc_project/inventory/system/board/Yosemite_4_Management_Board
++mapper wait /xyz/openbmc_project/inventory/system/board/Yosemite_4_Medusa_Board
++
+ # probe devices behind mux for management board cpld
++mgm_stage=$(get_product_version Management_Board)
+ 
+-stage=$(busctl introspect xyz.openbmc_project.FruDevice /xyz/openbmc_project/FruDevice/Medusa_Board | grep '.PRODUCT_VERSION' | awk -F\" '{print $2}')
++if [ -z "$mgm_stage" ]; then
++    echo "Failed to check management board fru info, all CPLD I/O expender are keeping default setting"
++elif [ "$mgm_stage" = "DVT" ] || [ "$mgm_stage" = "EVT" ]; then
++    echo pca9506 "0x20" > /sys/bus/i2c/devices/i2c-13/new_device
++    echo pca9506 "0x21" > /sys/bus/i2c/devices/i2c-13/new_device
++    echo pca9506 "0x22" > /sys/bus/i2c/devices/i2c-13/new_device
++    echo pca9506 "0x23" > /sys/bus/i2c/devices/i2c-13/new_device
++fi
+ 
+ # set initial value for pca9555 i/o pins on medusa board
+-if [ -z "$stage" ]; then
++medusa_stage=$(get_product_version Medusa_Board)
++
++if [ -z "$medusa_stage" ]; then
+     echo "Failed to check medusa board fru info, all I/O pins are keeping default input"
+-elif [ "$stage" = "POC" ]; then
++elif [ "$medusa_stage" = "POC" ]; then
+     set_gpio P48V_OCP_GPIO1       0
+     set_gpio P48V_OCP_GPIO2       0
+     set_gpio P48V_OCP_GPIO3       0
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init.service b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init.service
+index 68b3934bd93..aa0250b3c7f 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init.service
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-schematic-init.service
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Yosemite4 Schematic Init
+-After=xyz.openbmc_project.FruDevice.service
+-Requires=xyz.openbmc_project.FruDevice.service
++After=xyz.openbmc_project.EntityManager.service
++Requires=xyz.openbmc_project.EntityManager.service
+ 
+ [Service]
+ Type=oneshot
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
+index 0614ff08277..136344d2926 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
+@@ -20,3 +20,10 @@ set_gpio()
+     return 0
+ }
+ 
++get_product_version()
++{
++    local FRU_NAME=$1
++    local PRODUCT_VERSION
++    PRODUCT_VERSION=$(busctl get-property xyz.openbmc_project.EntityManager /xyz/openbmc_project/inventory/system/board/Yosemite_4_"$FRU_NAME" xyz.openbmc_project.Inventory.Decorator.Revision Version| awk -F\" '{print $2}')
++    echo "$PRODUCT_VERSION"
++}
+-- 
+2.25.1
+
