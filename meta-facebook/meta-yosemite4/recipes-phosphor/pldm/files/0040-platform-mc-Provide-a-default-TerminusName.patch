@@ -1,0 +1,49 @@
+From 3c9c844c92312283f53b16b716887665e7005540 Mon Sep 17 00:00:00 2001
+From: SeanChuangWiwynn <Sean_Chuang@wiwynn.com>
+Date: Wed, 14 Aug 2024 14:25:35 +0800
+Subject: [PATCH 40/40] platform-mc: Provide a default TerminusName
+
+Provida default TerminusName to prevent PLDM device which doesn't
+support ENTITY_AUXILIARY_NAMES_PDR yet.
+---
+ platform-mc/terminus.cpp                      | 5 +++--
+ requester/configuration_discovery_handler.hpp | 7 +++++++
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
+index 3bad6d3..c6f4f9c 100644
+--- a/platform-mc/terminus.cpp
++++ b/platform-mc/terminus.cpp
+@@ -18,8 +18,9 @@ Terminus::Terminus(pldm_tid_t tid, uint64_t supportedTypes) :
+     synchronyConfigurationSupported(0), pollEvent(false), tid(tid),
+     supportedTypes(supportedTypes)
+ {
+-    inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/PLDM_Device_" +
+-                    std::to_string(tid);
++    // Provide a defualt terminusName
++    terminusName = "PLDM_Device_" + std::to_string(tid);
++    inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/" + terminusName;
+     try
+     {
+         inventoryItemBoardInft = std::make_unique<InventoryItemBoardIntf>(
+diff --git a/requester/configuration_discovery_handler.hpp b/requester/configuration_discovery_handler.hpp
+index 58d64dc..b02a6f3 100644
+--- a/requester/configuration_discovery_handler.hpp
++++ b/requester/configuration_discovery_handler.hpp
+@@ -51,6 +51,13 @@ class ConfigurationDiscoveryHandler : public MctpDiscoveryHandlerIntf
+      *
+      *  @return The configurations.
+      */
++
++    void updateMctpEndpointAvailability(const MctpInfo&, Availability)
++    {
++	    return;
++    }
++
++
+     std::map<std::string, MctpEndpoint>& getConfigurations();
+ 
+   private:
+-- 
+2.25.1
+

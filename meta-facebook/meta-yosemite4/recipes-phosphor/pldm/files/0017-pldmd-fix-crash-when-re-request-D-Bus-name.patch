@@ -1,0 +1,91 @@
+From 3f5a969cee42ab9bfdf79707bfe3ad8b6782ec7b Mon Sep 17 00:00:00 2001
+From: Thu Nguyen <thu@os.amperecomputing.com>
+Date: Tue, 16 Jul 2024 13:16:54 +0000
+Subject: [PATCH 17/40] pldmd: fix crash when re-request D-Bus name
+
+`bus.request_name("xyz.openbmc_project.PLDM")` throws D-Bus exception
+when the name `xyz.openbmc_project.PLDM` is already requested. This
+causes the `pldmd` service will be crashed when build pldm source with
+`oem-ibm` disabled & `system-specific-bios-json` disabled. Add
+`try...catch...` to prevent the crash of `pldmd`.
+
+Tested:
+Was able to successfully start pldm service and see that the bus name
+`xyz.openbmc_project.PLDM` was claimed with these options setups:
++ `oem-ibm` disabled & `system-specific-bios-json` enabled.
++ `oem-ibm` disabled & `system-specific-bios-json` disabled.
+
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: I2ac70b686d1468b9c7484d5bf2543db2b4f33ded
+---
+ libpldmresponder/bios_config.cpp |  5 ++++-
+ pldmd/pldmd.cpp                  | 23 ++++++++++++++++++++---
+ 2 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/libpldmresponder/bios_config.cpp b/libpldmresponder/bios_config.cpp
+index 2b1a901..51fad71 100644
+--- a/libpldmresponder/bios_config.cpp
++++ b/libpldmresponder/bios_config.cpp
+@@ -92,7 +92,10 @@ void BIOSConfig::initBIOSAttributes(const std::string& systemType,
+     {
+         error("System specific bios attribute directory {DIR} does not exit",
+               "DIR", dir);
+-        requestPLDMServiceName();
++        if (registerService)
++        {
++            requestPLDMServiceName();
++        }
+         return;
+     }
+     constructAttributes();
+diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
+index 9613e02..8695fe8 100644
+--- a/pldmd/pldmd.cpp
++++ b/pldmd/pldmd.cpp
+@@ -65,6 +65,7 @@ PHOSPHOR_LOG2_USING;
+ #endif
+ 
+ constexpr uint8_t MCTP_MSG_TYPE_PLDM = 1;
++constexpr const char* PLDMService = "xyz.openbmc_project.PLDM";
+ 
+ using namespace pldm;
+ using namespace sdeventplus;
+@@ -84,8 +85,16 @@ void interruptFlightRecorderCallBack(Signal& /*signal*/,
+ 
+ void requestPLDMServiceName()
+ {
+-    auto& bus = pldm::utils::DBusHandler::getBus();
+-    bus.request_name("xyz.openbmc_project.PLDM");
++    try
++    {
++        auto& bus = pldm::utils::DBusHandler::getBus();
++        bus.request_name(PLDMService);
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        error("Failed to request D-Bus name {NAME} with error {ERROR}.", "NAME",
++              PLDMService, "ERROR", e);
++    }
+ }
+ 
+ static std::optional<Response>
+@@ -371,7 +380,15 @@ int main(int argc, char** argv)
+ 
+     bus.attach_event(event.get(), SD_EVENT_PRIORITY_NORMAL);
+ #ifndef SYSTEM_SPECIFIC_BIOS_JSON
+-    bus.request_name("xyz.openbmc_project.PLDM");
++    try
++    {
++        bus.request_name(PLDMService);
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        error("Failed to request D-Bus name {NAME} with error {ERROR}.", "NAME",
++              PLDMService, "ERROR", e);
++    }
+ #endif
+     IO io(event, pldmTransport.getEventSource(), EPOLLIN, std::move(callback));
+ #ifdef LIBPLDMRESPONDER
+-- 
+2.25.1
+

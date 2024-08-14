@@ -1,29 +1,27 @@
-From 937c613b1d16c4a1bd50c9c09d9e36d2e9c519b3 Mon Sep 17 00:00:00 2001
+From 2da113f57b224545eb2d2e1d7df3f750f0211e2b Mon Sep 17 00:00:00 2001
 From: Jerry C Chen <jerry.c.chen.wiwynn@gmail.com>
 Date: Tue, 9 Jul 2024 16:02:23 +0800
-Subject: [PATCH] platform-mc: add more exception type
+Subject: [PATCH 05/40] platform-mc: add more exception type
 
 Fix PLDMD crash if endpoint device doesn't response.
 
 Change-Id: I13c0292bdb681567593fbc4a62685e6393f88a82
 Signed-off-by: Jerry C Chen <jerry.c.chen.wiwynn@gmail.com>
 ---
- platform-mc/terminus_manager.cpp | 7 +++++++
- 1 file changed, 7 insertions(+)
+ platform-mc/terminus_manager.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
 
 diff --git a/platform-mc/terminus_manager.cpp b/platform-mc/terminus_manager.cpp
-index 54d749d..7452f31 100644
+index 54d749d..bb40d8d 100644
 --- a/platform-mc/terminus_manager.cpp
 +++ b/platform-mc/terminus_manager.cpp
-@@ -376,6 +376,13 @@ exec::task<int>
+@@ -376,6 +376,11 @@ exec::task<int>
              "ERROR", e);
          co_return PLDM_ERROR;
      }
-+    catch (int rc)
++    catch (const int& rc)
 +    {
-+        lg2::error(
-+             "sendRecvPldmMsgOverMctp failed. rc={RC}",
-+	     "RC", rc);
++        lg2::error("sendRecvPldmMsgOverMctp failed. rc={RC}", "RC", rc);
 +        co_return PLDM_ERROR;
 +    }
  }

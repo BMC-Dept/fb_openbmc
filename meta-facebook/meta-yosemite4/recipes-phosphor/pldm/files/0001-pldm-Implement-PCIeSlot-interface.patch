@@ -1,0 +1,265 @@
+From bf1fd27bdd91238f147c6ab4bcd58bdde324d84c Mon Sep 17 00:00:00 2001
+From: Archana Kakani <archana.kakani@ibm.com>
+Date: Wed, 5 Jun 2024 13:25:53 -0500
+Subject: [PATCH 01/40] pldm: Implement PCIeSlot interface
+
+Adding support to host dbus PCIeSlot interface.
+Based on the PDRs received from remote PLDM terminus,
+PLDM hosts the dbus interface based on the entity type.
+The Slot interface is defined at [1].
+
+Tested:
+    Functional test passed.
+
+[1]: https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/xyz/openbmc_project/Inventory/Item/PCIeSlot.interface.yaml
+
+Change-Id: I98db6c31ddcb35e5c124d060c4ee0ab0f8819e72
+Signed-off-by: Archana Kakani <archana.kakani@ibm.com>
+---
+ host-bmc/dbus/custom_dbus.cpp | 20 ++++++++++++
+ host-bmc/dbus/custom_dbus.hpp | 15 +++++++++
+ host-bmc/dbus/pcie_slot.cpp   | 57 +++++++++++++++++++++++++++++++++
+ host-bmc/dbus/pcie_slot.hpp   | 59 +++++++++++++++++++++++++++++++++++
+ host-bmc/host_pdr_handler.cpp |  4 +++
+ host-bmc/test/meson.build     |  1 +
+ libpldmresponder/meson.build  |  1 +
+ 7 files changed, 157 insertions(+)
+ create mode 100644 host-bmc/dbus/pcie_slot.cpp
+ create mode 100644 host-bmc/dbus/pcie_slot.hpp
+
+diff --git a/host-bmc/dbus/custom_dbus.cpp b/host-bmc/dbus/custom_dbus.cpp
+index 435d574..b1cae11 100644
+--- a/host-bmc/dbus/custom_dbus.cpp
++++ b/host-bmc/dbus/custom_dbus.cpp
+@@ -55,5 +55,25 @@ std::optional<uint32_t> CustomDBus::getMicroCode(const std::string& path) const
+ 
+     return std::nullopt;
+ }
++
++void CustomDBus::implementPCIeSlotInterface(const std::string& path)
++{
++    if (!pcieSlot.contains(path))
++    {
++        pcieSlot.emplace(path, std::make_unique<PCIeSlot>(
++                                   pldm::utils::DBusHandler::getBus(), path));
++    }
++}
++
++void CustomDBus::setSlotType(const std::string& path,
++                             const std::string& slotType)
++{
++    auto typeOfSlot =
++        pldm::dbus::PCIeSlot::convertSlotTypesFromString(slotType);
++    if (pcieSlot.contains(path))
++    {
++        pcieSlot.at(path)->slotType(typeOfSlot);
++    }
++}
+ } // namespace dbus
+ } // namespace pldm
+diff --git a/host-bmc/dbus/custom_dbus.hpp b/host-bmc/dbus/custom_dbus.hpp
+index c8307c6..c5d7e29 100644
+--- a/host-bmc/dbus/custom_dbus.hpp
++++ b/host-bmc/dbus/custom_dbus.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include "common/utils.hpp"
+ #include "cpu_core.hpp"
++#include "pcie_slot.hpp"
+ 
+ #include <sdbusplus/server.hpp>
+ #include <xyz/openbmc_project/Inventory/Decorator/LocationCode/server.hpp>
+@@ -82,9 +83,23 @@ class CustomDBus
+      */
+     std::optional<uint32_t> getMicroCode(const std::string& path) const;
+ 
++    /** @brief Implement PCIeSlot Interface
++     *
++     *  @param[in] path - the object path
++     */
++    void implementPCIeSlotInterface(const std::string& path);
++
++    /** @brief Set the slot type
++     *
++     *  @param[in] path - the object path
++     *  @param[in] slot type - Slot type
++     */
++    void setSlotType(const std::string& path, const std::string& slotType);
++
+   private:
+     std::unordered_map<ObjectPath, std::unique_ptr<LocationIntf>> location;
+     std::unordered_map<ObjectPath, std::unique_ptr<CPUCore>> cpuCore;
++    std::unordered_map<ObjectPath, std::unique_ptr<PCIeSlot>> pcieSlot;
+ };
+ 
+ } // namespace dbus
+diff --git a/host-bmc/dbus/pcie_slot.cpp b/host-bmc/dbus/pcie_slot.cpp
+new file mode 100644
+index 0000000..85fa244
+--- /dev/null
++++ b/host-bmc/dbus/pcie_slot.cpp
+@@ -0,0 +1,57 @@
++#include "pcie_slot.hpp"
++
++namespace pldm
++{
++namespace dbus
++{
++
++auto PCIeSlot::generation() const -> Generations
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        generation();
++}
++
++auto PCIeSlot::generation(Generations value) -> Generations
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        generation(value);
++}
++
++size_t PCIeSlot::lanes() const
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        lanes();
++}
++
++size_t PCIeSlot::lanes(size_t value)
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        lanes(value);
++}
++
++auto PCIeSlot::slotType() const -> SlotTypes
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        slotType();
++}
++
++auto PCIeSlot::slotType(SlotTypes value) -> SlotTypes
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        slotType(value);
++}
++
++bool PCIeSlot::hotPluggable() const
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        hotPluggable();
++}
++
++bool PCIeSlot::hotPluggable(bool value)
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot::
++        hotPluggable(value);
++}
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/dbus/pcie_slot.hpp b/host-bmc/dbus/pcie_slot.hpp
+new file mode 100644
+index 0000000..1acea80
+--- /dev/null
++++ b/host-bmc/dbus/pcie_slot.hpp
+@@ -0,0 +1,59 @@
++#pragma once
++
++#include <sdbusplus/bus.hpp>
++#include <sdbusplus/server.hpp>
++#include <sdbusplus/server/object.hpp>
++#include <xyz/openbmc_project/Inventory/Item/PCIeSlot/server.hpp>
++
++#include <string>
++
++namespace pldm
++{
++namespace dbus
++{
++using ItemSlot = sdbusplus::server::object_t<
++    sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeSlot>;
++
++/**
++ * @class PCIeSlot
++ * @brief PCIeSlot support includes the slot properties and functions
++ */
++class PCIeSlot : public ItemSlot
++{
++  public:
++    PCIeSlot() = delete;
++    ~PCIeSlot() = default;
++    PCIeSlot(const PCIeSlot&) = delete;
++    PCIeSlot& operator=(const PCIeSlot&) = delete;
++
++    PCIeSlot(sdbusplus::bus_t& bus, const std::string& objPath) :
++        ItemSlot(bus, objPath.c_str())
++    {}
++
++    /** Get value of Generation */
++    Generations generation() const override;
++
++    /** Set value of Generation */
++    Generations generation(Generations value) override;
++
++    /** Get value of Lanes */
++    size_t lanes() const override;
++
++    /** Set value of Lanes */
++    size_t lanes(size_t value) override;
++
++    /** Get value of SlotType */
++    SlotTypes slotType() const override;
++
++    /** Set value of SlotType */
++    SlotTypes slotType(SlotTypes value) override;
++
++    /** Get value of HotPluggable */
++    bool hotPluggable() const override;
++
++    /** Set value of HotPluggable */
++    bool hotPluggable(bool value) override;
++};
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index 1580956..144c880 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -1127,6 +1127,10 @@ void HostPDRHandler::createDbusObjects(const PDRList& fruRecordSetPDRs)
+                 CustomDBus::getCustomDBus().implementCpuCoreInterface(
+                     entity.first);
+                 break;
++            case PLDM_ENTITY_SLOT:
++                CustomDBus::getCustomDBus().implementPCIeSlotInterface(
++                    entity.first);
++                break;
+         }
+     }
+     getFRURecordTableMetadataByRemote(fruRecordSetPDRs);
+diff --git a/host-bmc/test/meson.build b/host-bmc/test/meson.build
+index f994552..9c7b6cf 100644
+--- a/host-bmc/test/meson.build
++++ b/host-bmc/test/meson.build
+@@ -7,6 +7,7 @@ test_sources = [
+   '../utils.cpp',
+   '../dbus/custom_dbus.cpp',
+   '../dbus/cpu_core.cpp',
++  '../dbus/pcie_slot.cpp',
+ ]
+ 
+ tests = [
+diff --git a/libpldmresponder/meson.build b/libpldmresponder/meson.build
+index 63cbaa7..4072748 100644
+--- a/libpldmresponder/meson.build
++++ b/libpldmresponder/meson.build
+@@ -31,6 +31,7 @@ sources = [
+   '../host-bmc/dbus/custom_dbus.cpp',
+   '../host-bmc/dbus/cpu_core.cpp',
+   '../host-bmc/utils.cpp',
++  '../host-bmc/dbus/pcie_slot.cpp',
+   'event_parser.cpp'
+ ]
+ 
+-- 
+2.25.1
+

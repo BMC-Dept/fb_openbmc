@@ -1,0 +1,34 @@
+From 478e71db0832ccb253cae53c2bcfe8f1fd254fd4 Mon Sep 17 00:00:00 2001
+From: Riya Dixit <riyadixitagra@gmail.com>
+Date: Fri, 21 Jun 2024 14:10:14 -0500
+Subject: [PATCH 09/40] host-bmc: Logging PEL for PDR Exchange Failure
+
+This commit logs PEL when BMC fails to collect PDR from remote endpoint.
+GetPDR returns no response because of BMC PDR exchange failure after
+three tries get exhausted and timeout occurs.
+
+Tested: Verified that the new PEL is reported when the pdr response
+pointer is null
+
+Change-Id: I862693a7e0fe2405af625010f2862d25af1f11e2
+Signed-off-by: Riya Dixit <riyadixitagra@gmail.com>
+---
+ host-bmc/host_pdr_handler.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index c51a08b..df0ac5c 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -474,6 +474,8 @@ void HostPDRHandler::processHostPDRs(mctp_eid_t /*eid*/,
+     if (response == nullptr || !respMsgLen)
+     {
+         error("Failed to receive response for the GetPDR command");
++        pldm::utils::reportError(
++            "xyz.openbmc_project.PLDM.Error.GetPDR.PDRExchangeFailure");
+         return;
+     }
+ 
+-- 
+2.25.1
+

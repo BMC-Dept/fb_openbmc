@@ -1,0 +1,76 @@
+From 6c83d3bc13e3f0ea42f0804c322889fcb495ab83 Mon Sep 17 00:00:00 2001
+From: Thu Nguyen <thu@os.amperecomputing.com>
+Date: Sat, 22 Jun 2024 13:06:12 +0000
+Subject: [PATCH 21/40] pldmtool: GetPLDMCommand: Support version option
+
+`GetPLDMCommands` in DSP0240 v1.1.0 requires the PLDM supported type
+version. In the current implementation, `pldmtool` always send `0xff
+0xff 0xff 0xff` version to `GetPLDMCommand` with the assumption that the
+terminus will response for the request with any version of PLDM type.
+
+Some termini don't accept `0xff 0xff 0xff 0xff` as input
+version to `GetPLDMCommands` command because value `0xff` only has
+meaning `A value of 0xFF in the "update" field indicates that the field
+to be ignored.` in the `Section 12.6.1 Version field encoding` in `MCTP
+Base spec` DSP0236 v1.3.1 but not in `PLDM base spec` DSP0240 v1.1.0
+where `GetPLDMCommand` is detailed.
+
+Add `-d` option to allow the user input the PLDM supported type version
+which is responded by terminus in `GetPLDMVersion` command. The input
+version will be in hex format. eg version 1.1.0 will be input as `0x00
+0xf0 0xf1 0xf1`.
+
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: I42a940ac6d8976b3630613211fcdbe1290895014
+---
+ pldmtool/pldm_base_cmd.cpp | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/pldmtool/pldm_base_cmd.cpp b/pldmtool/pldm_base_cmd.cpp
+index 3d94481..9d6449a 100644
+--- a/pldmtool/pldm_base_cmd.cpp
++++ b/pldmtool/pldm_base_cmd.cpp
+@@ -258,6 +258,10 @@ class GetPLDMCommands : public CommandInterface
+         app->add_option("-t,--type", pldmType, "pldm supported type")
+             ->required()
+             ->transform(CLI::CheckedTransformer(pldmTypes, CLI::ignore_case));
++        app->add_option(
++            "-d,--data", inputVersion,
++            "Set PLDM type version. Which is got from GetPLDMVersion\n"
++            "eg: version 1.1.0 then data will be `0xf1 0xf1 0xf0 0x00`");
+     }
+ 
+     std::pair<int, std::vector<uint8_t>> createRequestMsg() override
+@@ -266,6 +270,21 @@ class GetPLDMCommands : public CommandInterface
+                                         PLDM_GET_COMMANDS_REQ_BYTES);
+         auto request = reinterpret_cast<pldm_msg*>(requestMsg.data());
+         ver32_t version{0xFF, 0xFF, 0xFF, 0xFF};
++        if (inputVersion.size() != 0)
++        {
++            if (inputVersion.size() != 4)
++            {
++                std::cerr << "Invalid version format. "
++                          << "\n";
++            }
++            else
++            {
++                version.major = inputVersion[3];
++                version.minor = inputVersion[2];
++                version.update = inputVersion[1];
++                version.alpha = inputVersion[0];
++            }
++        }
+         auto rc = encode_get_commands_req(instanceId, pldmType, version,
+                                           request);
+         return {rc, requestMsg};
+@@ -288,6 +307,7 @@ class GetPLDMCommands : public CommandInterface
+ 
+   private:
+     pldm_supported_types pldmType;
++    std::vector<uint8_t> inputVersion;
+ 
+     template <typename CommandMap>
+     void printCommand(CommandMap& commandMap, int i, ordered_json& jarray)
+-- 
+2.25.1
+

@@ -1,0 +1,240 @@
+From 733b39dacf401379998c0f9a72ce4b5c899fd40c Mon Sep 17 00:00:00 2001
+From: Archana Kakani <archana.kakani@ibm.com>
+Date: Wed, 5 Jun 2024 21:05:20 -0500
+Subject: [PATCH 02/40] pldm: Implement PCIeDevice interface
+
+Adding support to host PCIeDevice dbus interface.
+Based on the PDRs received from remote PLDM terminus,
+PLDM hosts the dbus interface based on the entity type.
+The PCIe Device interface is defined at [1].
+
+Tested:
+   Functional test passed
+
+[1]: https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/xyz/openbmc_project/Inventory/Item/PCIeDevice.interface.yaml
+
+Change-Id: I69472efef33c3ad030ba4c831f07f60833b2c40b
+Signed-off-by: Archana Kakani <archana.kakani@ibm.com>
+---
+ host-bmc/dbus/custom_dbus.cpp | 23 ++++++++++++++++
+ host-bmc/dbus/custom_dbus.hpp | 17 ++++++++++++
+ host-bmc/dbus/pcie_device.cpp | 33 +++++++++++++++++++++++
+ host-bmc/dbus/pcie_device.hpp | 51 +++++++++++++++++++++++++++++++++++
+ host-bmc/host_pdr_handler.cpp |  6 +++++
+ host-bmc/test/meson.build     |  1 +
+ libpldmresponder/meson.build  |  1 +
+ 7 files changed, 132 insertions(+)
+ create mode 100644 host-bmc/dbus/pcie_device.cpp
+ create mode 100644 host-bmc/dbus/pcie_device.hpp
+
+diff --git a/host-bmc/dbus/custom_dbus.cpp b/host-bmc/dbus/custom_dbus.cpp
+index b1cae11..cfe3a42 100644
+--- a/host-bmc/dbus/custom_dbus.cpp
++++ b/host-bmc/dbus/custom_dbus.cpp
+@@ -75,5 +75,28 @@ void CustomDBus::setSlotType(const std::string& path,
+         pcieSlot.at(path)->slotType(typeOfSlot);
+     }
+ }
++
++void CustomDBus::implementPCIeDeviceInterface(const std::string& path)
++{
++    if (!pcieDevice.contains(path))
++    {
++        pcieDevice.emplace(path, std::make_unique<PCIeDevice>(
++                                     pldm::utils::DBusHandler::getBus(), path));
++    }
++}
++
++void CustomDBus::setPCIeDeviceProps(const std::string& path, size_t lanesInUse,
++                                    const std::string& value)
++{
++    Generations generationsInUse =
++        pldm::dbus::PCIeSlot::convertGenerationsFromString(value);
++
++    if (pcieDevice.contains(path))
++    {
++        pcieDevice.at(path)->lanesInUse(lanesInUse);
++        pcieDevice.at(path)->generationInUse(generationsInUse);
++    }
++}
++
+ } // namespace dbus
+ } // namespace pldm
+diff --git a/host-bmc/dbus/custom_dbus.hpp b/host-bmc/dbus/custom_dbus.hpp
+index c5d7e29..5d7cf2e 100644
+--- a/host-bmc/dbus/custom_dbus.hpp
++++ b/host-bmc/dbus/custom_dbus.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include "common/utils.hpp"
+ #include "cpu_core.hpp"
++#include "pcie_device.hpp"
+ #include "pcie_slot.hpp"
+ 
+ #include <sdbusplus/server.hpp>
+@@ -96,9 +97,25 @@ class CustomDBus
+      */
+     void setSlotType(const std::string& path, const std::string& slotType);
+ 
++    /** @brief Implement PCIe Device Interface
++     *
++     *  @param[in] path - the object path
++     */
++    void implementPCIeDeviceInterface(const std::string& path);
++
++    /** @brief Set PCIe Device Lanes in use property
++     *
++     *  @param[in] path - the object path
++     *  @param[in] lanesInUse - Lanes in use
++     *  @param[in] value - Generation in use
++     */
++    void setPCIeDeviceProps(const std::string& path, size_t lanesInUse,
++                            const std::string& value);
++
+   private:
+     std::unordered_map<ObjectPath, std::unique_ptr<LocationIntf>> location;
+     std::unordered_map<ObjectPath, std::unique_ptr<CPUCore>> cpuCore;
++    std::unordered_map<ObjectPath, std::unique_ptr<PCIeDevice>> pcieDevice;
+     std::unordered_map<ObjectPath, std::unique_ptr<PCIeSlot>> pcieSlot;
+ };
+ 
+diff --git a/host-bmc/dbus/pcie_device.cpp b/host-bmc/dbus/pcie_device.cpp
+new file mode 100644
+index 0000000..55ed83f
+--- /dev/null
++++ b/host-bmc/dbus/pcie_device.cpp
+@@ -0,0 +1,33 @@
++#include "pcie_device.hpp"
++
++namespace pldm
++{
++namespace dbus
++{
++
++auto PCIeDevice::generationInUse() const -> Generations
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::
++        PCIeDevice::generationInUse();
++}
++
++auto PCIeDevice::generationInUse(Generations value) -> Generations
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::
++        PCIeDevice::generationInUse(value);
++}
++
++size_t PCIeDevice::lanesInUse() const
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::
++        PCIeDevice::lanesInUse();
++}
++
++size_t PCIeDevice::lanesInUse(size_t value)
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::
++        PCIeDevice::lanesInUse(value);
++}
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/dbus/pcie_device.hpp b/host-bmc/dbus/pcie_device.hpp
+new file mode 100644
+index 0000000..036e078
+--- /dev/null
++++ b/host-bmc/dbus/pcie_device.hpp
+@@ -0,0 +1,51 @@
++#pragma once
++
++#include <sdbusplus/bus.hpp>
++#include <sdbusplus/server.hpp>
++#include <sdbusplus/server/object.hpp>
++#include <xyz/openbmc_project/Inventory/Item/PCIeDevice/server.hpp>
++#include <xyz/openbmc_project/Inventory/Item/PCIeSlot/common.hpp>
++
++#include <string>
++
++namespace pldm
++{
++namespace dbus
++{
++using ItemDevice = sdbusplus::server::object_t<
++    sdbusplus::xyz::openbmc_project::Inventory::Item::server::PCIeDevice>;
++using Generations = sdbusplus::common::xyz::openbmc_project::inventory::item::
++    PCIeSlot::Generations;
++
++/**
++ * @class PCIeDevice
++ * @brief PCIeDevice DBUS support, also includes the device properties
++ */
++
++class PCIeDevice : public ItemDevice
++{
++  public:
++    PCIeDevice() = delete;
++    ~PCIeDevice() = default;
++    PCIeDevice(const PCIeDevice&) = delete;
++    PCIeDevice& operator=(const PCIeDevice&) = delete;
++
++    PCIeDevice(sdbusplus::bus_t& bus, const std::string& objPath) :
++        ItemDevice(bus, objPath.c_str())
++    {}
++
++    /** Get lanes in use */
++    size_t lanesInUse() const override;
++
++    /** Set lanes in use */
++    size_t lanesInUse(size_t value) override;
++
++    /** Get Generation in use */
++    Generations generationInUse() const override;
++
++    /** Set Generation in use */
++    Generations generationInUse(Generations value) override;
++};
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index 144c880..950cafe 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -1131,6 +1131,12 @@ void HostPDRHandler::createDbusObjects(const PDRList& fruRecordSetPDRs)
+                 CustomDBus::getCustomDBus().implementPCIeSlotInterface(
+                     entity.first);
+                 break;
++            case PLDM_ENTITY_CARD:
++                CustomDBus::getCustomDBus().implementPCIeDeviceInterface(
++                    entity.first);
++                break;
++            default:
++                break;
+         }
+     }
+     getFRURecordTableMetadataByRemote(fruRecordSetPDRs);
+diff --git a/host-bmc/test/meson.build b/host-bmc/test/meson.build
+index 9c7b6cf..d2846b2 100644
+--- a/host-bmc/test/meson.build
++++ b/host-bmc/test/meson.build
+@@ -7,6 +7,7 @@ test_sources = [
+   '../utils.cpp',
+   '../dbus/custom_dbus.cpp',
+   '../dbus/cpu_core.cpp',
++  '../dbus/pcie_device.cpp',
+   '../dbus/pcie_slot.cpp',
+ ]
+ 
+diff --git a/libpldmresponder/meson.build b/libpldmresponder/meson.build
+index 4072748..6d82dca 100644
+--- a/libpldmresponder/meson.build
++++ b/libpldmresponder/meson.build
+@@ -31,6 +31,7 @@ sources = [
+   '../host-bmc/dbus/custom_dbus.cpp',
+   '../host-bmc/dbus/cpu_core.cpp',
+   '../host-bmc/utils.cpp',
++  '../host-bmc/dbus/pcie_device.cpp',
+   '../host-bmc/dbus/pcie_slot.cpp',
+   'event_parser.cpp'
+ ]
+-- 
+2.25.1
+

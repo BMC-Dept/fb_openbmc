@@ -1,0 +1,446 @@
+From 107fb60926a9b3944ac9f40ed7286ec51a50be36 Mon Sep 17 00:00:00 2001
+From: Thu Nguyen <thu@os.amperecomputing.com>
+Date: Sat, 15 Jun 2024 02:44:35 +0000
+Subject: [PATCH 23/40] platform-mc: Terminus name handling
+
+`PLDM-stack: Adding sensor monitoring section` design spec details that
+the `Terminus name` is required to create the terminus's sensors,
+states, effecters... D-Bus interfaces and `Terminus Name` can be
+encoded in the Terminus's `Entity Auxiliary Names PDR` or in the MCTP
+Entity-manager endpoint EID configuration file.
+[1] https://gerrit.openbmc.org/c/openbmc/docs/+/47252/34/designs/pldm-stack.md#433
+
+Section `28.18 Entity Auxiliary Names PDR` in DSP0248 V1.2.2 details
+about the PDRs response for the name of one PLDM entity. When the
+containerID is `0x0000` this entity is `Overall system` or `top most
+containing entity`. The name of this entity will can be used as
+`Terminus name`.
+
+Support parsing `Entity Auxiliary Names PDR` and find the `Terminus
+name` if it is reponsed in the terminus' PDRs. `Terminus Name` string
+will be assigned to local variable and can be used as prefix for
+sensors, state, effecters... names.
+
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: I701537c48651b9de86de77941b752e30de112916
+---
+ platform-mc/terminus.cpp                   | 107 ++++++++++++++
+ platform-mc/terminus.hpp                   |  59 ++++++++
+ platform-mc/test/platform_manager_test.cpp | 157 +++++++++++++++++++++
+ 3 files changed, 323 insertions(+)
+
+diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
+index 194583f..456efde 100644
+--- a/platform-mc/terminus.cpp
++++ b/platform-mc/terminus.cpp
+@@ -51,6 +51,25 @@ bool Terminus::doesSupportCommand(uint8_t type, uint8_t command)
+     return false;
+ }
+ 
++std::optional<std::string> Terminus::findTerminusName()
++{
++    auto it = std::find_if(
++        entityAuxiliaryNamesTbl.begin(), entityAuxiliaryNamesTbl.end(),
++        [](const std::shared_ptr<EntityAuxiliaryNames>& entityAuxiliaryNames) {
++        const auto& [key, entityNames] = *entityAuxiliaryNames;
++        return (key.containerId == PLDM_PLATFORM_ENTITY_SYSTEM_CONTAINER_ID &&
++                key.instanceIdx == 1 && entityNames.size());
++    });
++
++    if (it != entityAuxiliaryNamesTbl.end())
++    {
++        const auto& [key, entityNames] = **it;
++        return entityNames[0].second;
++    }
++
++    return std::nullopt;
++}
++
+ void Terminus::parseTerminusPDRs()
+ {
+     std::vector<std::shared_ptr<pldm_numeric_sensor_value_pdr>>
+@@ -115,6 +134,20 @@ void Terminus::parseTerminusPDRs()
+                 sensorAuxiliaryNamesTbl.emplace_back(std::move(sensorAuxNames));
+                 break;
+             }
++            case PLDM_ENTITY_AUXILIARY_NAMES_PDR:
++            {
++                auto entityNames = parseEntityAuxiliaryNamesPDR(pdr);
++                if (!entityNames)
++                {
++                    lg2::error(
++                        "Failed to parse sensor name PDR with type {TYPE} handle {HANDLE}",
++                        "TYPE", pdrHdr->type, "HANDLE",
++                        static_cast<uint32_t>(pdrHdr->record_handle));
++                    continue;
++                }
++                entityAuxiliaryNamesTbl.emplace_back(std::move(entityNames));
++                break;
++            }
+             default:
+             {
+                 lg2::error("Unsupported PDR with type {TYPE} handle {HANDLE}",
+@@ -124,6 +157,12 @@ void Terminus::parseTerminusPDRs()
+             }
+         }
+     }
++
++    auto tName = findTerminusName();
++    if (tName && !tName.value().empty())
++    {
++        terminusName = tName.value();
++    }
+ }
+ 
+ std::shared_ptr<SensorAuxiliaryNames>
+@@ -207,6 +246,74 @@ std::shared_ptr<SensorAuxiliaryNames>
+         pdr->sensor_id, pdr->sensor_count, std::move(sensorAuxNames));
+ }
+ 
++std::shared_ptr<EntityAuxiliaryNames>
++    Terminus::parseEntityAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData)
++{
++    auto names_offset = sizeof(struct pldm_pdr_hdr) +
++                        PLDM_PDR_ENTITY_AUXILIARY_NAME_PDR_MIN_LENGTH;
++    auto names_size = pdrData.size() - names_offset;
++
++    size_t decodedPdrSize = sizeof(struct pldm_entity_auxiliary_names_pdr) +
++                            names_size;
++    auto vPdr = std::vector<char>(decodedPdrSize);
++    auto decodedPdr =
++        reinterpret_cast<struct pldm_entity_auxiliary_names_pdr*>(vPdr.data());
++
++    auto rc = decode_entity_auxiliary_names_pdr(pdrData.data(), pdrData.size(),
++                                                decodedPdr, decodedPdrSize);
++
++    if (rc)
++    {
++        lg2::error(
++            "Failed to decode Entity Auxiliary Name PDR data, error {RC}.",
++            "RC", rc);
++        return nullptr;
++    }
++
++    auto vNames =
++        std::vector<pldm_entity_auxiliary_name>(decodedPdr->name_string_count);
++    decodedPdr->names = vNames.data();
++
++    rc = decode_pldm_entity_auxiliary_names_pdr_index(decodedPdr);
++    if (rc)
++    {
++        lg2::error("Failed to decode Entity Auxiliary Name, error {RC}.", "RC",
++                   rc);
++        return nullptr;
++    }
++
++    std::vector<std::pair<NameLanguageTag, EntityName>> nameStrings{};
++    for (const auto& count :
++         std::views::iota(0, static_cast<int>(decodedPdr->name_string_count)))
++    {
++        std::string_view nameLanguageTag =
++            static_cast<std::string_view>(decodedPdr->names[count].tag);
++        const size_t u16NameStringLen =
++            std::char_traits<char16_t>::length(decodedPdr->names[count].name);
++        std::u16string u16NameString(decodedPdr->names[count].name,
++                                     u16NameStringLen);
++        std::transform(u16NameString.cbegin(), u16NameString.cend(),
++                       u16NameString.begin(),
++                       [](uint16_t utf16) { return be16toh(utf16); });
++        std::string nameString =
++            std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}
++                .to_bytes(u16NameString);
++        std::replace(nameString.begin(), nameString.end(), ' ', '_');
++        auto nullTerminatorPos = nameString.find('\0');
++        if (nullTerminatorPos != std::string::npos)
++        {
++            nameString.erase(nullTerminatorPos);
++        }
++        nameStrings.emplace_back(std::make_pair(nameLanguageTag, nameString));
++    }
++
++    EntityKey key{decodedPdr->container.entity_type,
++                  decodedPdr->container.entity_instance_num,
++                  decodedPdr->container.entity_container_id};
++
++    return std::make_shared<EntityAuxiliaryNames>(key, nameStrings);
++}
++
+ std::shared_ptr<pldm_numeric_sensor_value_pdr>
+     Terminus::parseNumericSensorPDR(const std::vector<uint8_t>& pdr)
+ {
+diff --git a/platform-mc/terminus.hpp b/platform-mc/terminus.hpp
+index 3a1a302..029b69e 100644
+--- a/platform-mc/terminus.hpp
++++ b/platform-mc/terminus.hpp
+@@ -21,6 +21,10 @@ namespace pldm
+ namespace platform_mc
+ {
+ 
++using ContainerID = uint16_t;
++using EntityInstanceNumber = uint16_t;
++using EntityName = std::string;
++using EntityType = uint16_t;
+ using SensorId = uint16_t;
+ using SensorCnt = uint8_t;
+ using NameLanguageTag = std::string;
+@@ -29,6 +33,29 @@ using SensorAuxiliaryNames = std::tuple<
+     SensorId, SensorCnt,
+     std::vector<std::vector<std::pair<NameLanguageTag, SensorName>>>>;
+ 
++/** @struct EntityKey
++ *
++ *  EntityKey uniquely identifies the PLDM entity and a combination of Entity
++ *  Type, Entity Instance Number, Entity Container ID
++ *
++ */
++struct EntityKey
++{
++    EntityType type;                  //!< Entity type
++    EntityInstanceNumber instanceIdx; //!< Entity instance number
++    ContainerID containerId;          //!< Entity container ID
++
++    bool operator==(const EntityKey& e) const
++    {
++        return ((type == e.type) && (instanceIdx == e.instanceIdx) &&
++                (containerId == e.containerId));
++    }
++};
++
++using EntityKey = struct EntityKey;
++using EntityAuxiliaryNames =
++    std::tuple<EntityKey, std::vector<std::pair<NameLanguageTag, EntityName>>>;
++
+ /**
+  * @brief Terminus
+  *
+@@ -90,6 +117,17 @@ class Terminus
+         return tid;
+     }
+ 
++    /** @brief The setter to set terminus's mctp medium */
++    inline void setTerminusName(std::string name)
++    {
++        terminusName = name;
++    }
++
++    std::string getTerminusName()
++    {
++        return terminusName;
++    }
++
+     /** @brief A list of PDRs fetched from Terminus */
+     std::vector<std::vector<uint8_t>> pdrs{};
+ 
+@@ -104,6 +142,12 @@ class Terminus
+     std::shared_ptr<SensorAuxiliaryNames> getSensorAuxiliaryNames(SensorId id);
+ 
+   private:
++    /** @brief Find the Terminus Name from the Entity Auxiliary name list
++     *         The Entity Auxiliary name list is entityAuxiliaryNamesTbl.
++     *  @return terminus name in string option
++     */
++    std::optional<std::string> findTerminusName();
++
+     /** @brief Parse the numeric sensor PDRs
+      *
+      *  @param[in] pdrData - the response PDRs from GetPDR command
+@@ -120,6 +164,14 @@ class Terminus
+     std::shared_ptr<SensorAuxiliaryNames>
+         parseSensorAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData);
+ 
++    /** @brief Parse the Entity Auxiliary name PDRs
++     *
++     *  @param[in] pdrData - the response PDRs from GetPDR command
++     *  @return pointer to Entity Auxiliary name info struct
++     */
++    std::shared_ptr<EntityAuxiliaryNames>
++        parseEntityAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData);
++
+     /** @brief Parse the compact numeric sensor PDRs
+      *
+      *  @param[in] pdrData - the response PDRs from GetPDR command
+@@ -155,6 +207,13 @@ class Terminus
+     /* @brief Sensor Auxiliary Name list */
+     std::vector<std::shared_ptr<SensorAuxiliaryNames>>
+         sensorAuxiliaryNamesTbl{};
++
++    /* @brief Entity Auxiliary Name list */
++    std::vector<std::shared_ptr<EntityAuxiliaryNames>>
++        entityAuxiliaryNamesTbl{};
++
++    /** @brief Terminus name */
++    EntityName terminusName{};
+ };
+ } // namespace platform_mc
+ } // namespace pldm
+diff --git a/platform-mc/test/platform_manager_test.cpp b/platform-mc/test/platform_manager_test.cpp
+index 2df2b48..3b97bd0 100644
+--- a/platform-mc/test/platform_manager_test.cpp
++++ b/platform-mc/test/platform_manager_test.cpp
+@@ -152,6 +152,163 @@ TEST_F(PlatformManagerTest, initTerminusTest)
+     EXPECT_EQ(1, terminus->pdrs.size());
+ }
+ 
++TEST_F(PlatformManagerTest, parseTerminusNameTest)
++{
++    // Add terminus
++    auto mappedTid = mockTerminusManager.mapTid(pldm::MctpInfo(10, "", "", 1));
++    auto tid = mappedTid.value();
++    termini[tid] = std::make_shared<pldm::platform_mc::Terminus>(
++        tid, 1 << PLDM_BASE | 1 << PLDM_PLATFORM);
++    auto terminus = termini[tid];
++
++    /* Set supported command by terminus */
++    auto size = PLDM_MAX_TYPES * (PLDM_MAX_CMDS_PER_TYPE / 8);
++    std::vector<uint8_t> pldmCmds(size);
++    uint8_t type = PLDM_PLATFORM;
++    uint8_t cmd = PLDM_GET_PDR;
++    auto idx = type * (PLDM_MAX_CMDS_PER_TYPE / 8) + (cmd / 8);
++    pldmCmds[idx] = pldmCmds[idx] | (1 << (cmd % 8));
++    cmd = PLDM_GET_PDR_REPOSITORY_INFO;
++    idx = type * (PLDM_MAX_CMDS_PER_TYPE / 8) + (cmd / 8);
++    pldmCmds[idx] = pldmCmds[idx] | (1 << (cmd % 8));
++    termini[tid]->setSupportedCommands(pldmCmds);
++
++    // queue getPDRRepositoryInfo response
++    const size_t getPDRRepositoryInfoLen =
++        PLDM_GET_PDR_REPOSITORY_INFO_RESP_BYTES;
++    std::array<uint8_t, sizeof(pldm_msg_hdr) + getPDRRepositoryInfoLen>
++        getPDRRepositoryInfoResp{
++            0x0, 0x02, 0x50, PLDM_SUCCESS,
++            0x0,                                     // repositoryState
++            0x0, 0x0,  0x0,  0x0,          0x0, 0x0, 0x0,
++            0x0, 0x0,  0x0,  0x0,          0x0, 0x0, // updateTime
++            0x0, 0x0,  0x0,  0x0,          0x0, 0x0, 0x0,
++            0x0, 0x0,  0x0,  0x0,          0x0, 0x0, // OEMUpdateTime
++            2,   0x0,  0x0,  0x0,                    // recordCount
++            0x0, 0x1,  0x0,  0x0,                    // repositorySize
++            59,  0x0,  0x0,  0x0,                    // largestRecordSize
++            0x0 // dataTransferHandleTimeout
++        };
++    auto rc = mockTerminusManager.enqueueResponse(
++        (pldm_msg*)getPDRRepositoryInfoResp.data(),
++        sizeof(getPDRRepositoryInfoResp));
++    EXPECT_EQ(rc, PLDM_SUCCESS);
++
++    // queue getPDR responses
++    const size_t getPdrRespLen = 81;
++    std::array<uint8_t, sizeof(pldm_msg_hdr) + getPdrRespLen> getPdrResp{
++        0x0, 0x02, 0x51, PLDM_SUCCESS, 0x1, 0x0, 0x0, 0x0, // nextRecordHandle
++        0x0, 0x0, 0x0, 0x0, // nextDataTransferHandle
++        0x5,                // transferFlag
++        69, 0x0,            // responseCount
++        // numeric Sensor PDR
++        0x0, 0x0, 0x0,
++        0x0,                     // record handle
++        0x1,                     // PDRHeaderVersion
++        PLDM_NUMERIC_SENSOR_PDR, // PDRType
++        0x0,
++        0x0,                     // recordChangeNumber
++        PLDM_PDR_NUMERIC_SENSOR_PDR_FIXED_LENGTH +
++            PLDM_PDR_NUMERIC_SENSOR_PDR_VARIED_SENSOR_DATA_SIZE_MIN_LENGTH +
++            PLDM_PDR_NUMERIC_SENSOR_PDR_VARIED_RANGE_FIELD_MIN_LENGTH,
++        0,                             // dataLength
++        0,
++        0,                             // PLDMTerminusHandle
++        0x1,
++        0x0,                           // sensorID=1
++        120,
++        0,                             // entityType=Power Supply(120)
++        1,
++        0,                             // entityInstanceNumber
++        0x1,
++        0x0,                           // containerID=1
++        PLDM_NO_INIT,                  // sensorInit
++        false,                         // sensorAuxiliaryNamesPDR
++        PLDM_SENSOR_UNIT_DEGRESS_C,    // baseUint(2)=degrees C
++        1,                             // unitModifier = 1
++        0,                             // rateUnit
++        0,                             // baseOEMUnitHandle
++        0,                             // auxUnit
++        0,                             // auxUnitModifier
++        0,                             // auxRateUnit
++        0,                             // rel
++        0,                             // auxOEMUnitHandle
++        true,                          // isLinear
++        PLDM_SENSOR_DATA_SIZE_UINT8,   // sensorDataSize
++        0, 0, 0xc0,
++        0x3f,                          // resolution=1.5
++        0, 0, 0x80,
++        0x3f,                          // offset=1.0
++        0,
++        0,                             // accuracy
++        0,                             // plusTolerance
++        0,                             // minusTolerance
++        2,                             // hysteresis
++        0,                             // supportedThresholds
++        0,                             // thresholdAndHysteresisVolatility
++        0, 0, 0x80,
++        0x3f,                          // stateTransistionInterval=1.0
++        0, 0, 0x80,
++        0x3f,                          // updateInverval=1.0
++        255,                           // maxReadable
++        0,                             // minReadable
++        PLDM_RANGE_FIELD_FORMAT_UINT8, // rangeFieldFormat
++        0,                             // rangeFieldsupport
++        0,                             // nominalValue
++        0,                             // normalMax
++        0,                             // normalMin
++        0,                             // warningHigh
++        0,                             // warningLow
++        0,                             // criticalHigh
++        0,                             // criticalLow
++        0,                             // fatalHigh
++        0                              // fatalLow
++    };
++    rc = mockTerminusManager.enqueueResponse((pldm_msg*)getPdrResp.data(),
++                                             sizeof(getPdrResp));
++    EXPECT_EQ(rc, PLDM_SUCCESS);
++
++    const size_t getPdrAuxNameRespLen = 39;
++    std::array<uint8_t, sizeof(pldm_msg_hdr) + getPdrAuxNameRespLen>
++        getPdrAuxNameResp{
++            0x0, 0x02, 0x51, PLDM_SUCCESS, 0x0, 0x0, 0x0,
++            0x0,                // nextRecordHandle
++            0x0, 0x0, 0x0, 0x0, // nextDataTransferHandle
++            0x5,                // transferFlag
++            0x1b, 0x0,          // responseCount
++            // Common PDR Header
++            0x1, 0x0, 0x0,
++            0x0,                             // record handle
++            0x1,                             // PDRHeaderVersion
++            PLDM_ENTITY_AUXILIARY_NAMES_PDR, // PDRType
++            0x1,
++            0x0,                             // recordChangeNumber
++            0x11,
++            0,                               // dataLength
++            /* Entity Auxiliary Names PDR Data*/
++            3,
++            0x80, // entityType system software
++            0x1,
++            0x0,  // Entity instance number =1
++            0,
++            0,    // Overal system
++            0,    // shared Name Count one name only
++            01,   // nameStringCount
++            0x65, 0x6e, 0x00,
++            0x00, // Language Tag "en"
++            0x53, 0x00, 0x30, 0x00,
++            0x00  // Entity Name "S0"
++        };
++    rc = mockTerminusManager.enqueueResponse(
++        (pldm_msg*)getPdrAuxNameResp.data(), sizeof(getPdrAuxNameResp));
++    EXPECT_EQ(rc, PLDM_SUCCESS);
++
++    stdexec::sync_wait(platformManager.initTerminus());
++    EXPECT_EQ(true, terminus->initialized);
++    EXPECT_EQ(2, terminus->pdrs.size());
++    EXPECT_EQ("S0", terminus->getTerminusName());
++}
++
+ TEST_F(PlatformManagerTest, initTerminusDontSupportGetPDRTest)
+ {
+     // Add terminus
+-- 
+2.25.1
+

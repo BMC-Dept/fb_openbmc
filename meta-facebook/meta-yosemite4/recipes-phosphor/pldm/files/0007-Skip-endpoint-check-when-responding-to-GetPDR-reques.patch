@@ -1,0 +1,44 @@
+From c5a112036a4274badb1b397be658539f2cc4cb43 Mon Sep 17 00:00:00 2001
+From: Manojkiran Eda <manojkiran.eda@gmail.com>
+Date: Wed, 3 Jul 2024 12:12:57 +0530
+Subject: [PATCH 07/40] Skip endpoint check when responding to GetPDR requests
+
+Bypassing the remote endpoint status check before responding to GetPDR
+requests prevents potential issues due to the variable behavior of
+remote PLDM termini. If a remote terminus sends a GetPDR request before
+responding to the GetPLDMVersion command, a race condition may occur.
+Therefore, it is safer to skip the remote endpoint alive check.
+
+Change-Id: I9b2a186fee7f8d3a382b1573d872596728c9f7d4
+Signed-off-by: Manojkiran Eda <manojkiran.eda@gmail.com>
+---
+ libpldmresponder/platform.cpp | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/libpldmresponder/platform.cpp b/libpldmresponder/platform.cpp
+index 7d50b5d..1e0955a 100644
+--- a/libpldmresponder/platform.cpp
++++ b/libpldmresponder/platform.cpp
+@@ -162,15 +162,12 @@ void Handler::generate(const pldm::utils::DBusHandler& dBusIntf,
+ 
+ Response Handler::getPDR(const pldm_msg* request, size_t payloadLength)
+ {
+-    if (hostPDRHandler)
++    if (oemPlatformHandler)
+     {
+-        if (hostPDRHandler->isHostUp() && oemPlatformHandler != nullptr)
++        auto rc = oemPlatformHandler->checkBMCState();
++        if (rc != PLDM_SUCCESS)
+         {
+-            auto rc = oemPlatformHandler->checkBMCState();
+-            if (rc != PLDM_SUCCESS)
+-            {
+-                return ccOnlyResponse(request, PLDM_ERROR_NOT_READY);
+-            }
++            return ccOnlyResponse(request, PLDM_ERROR_NOT_READY);
+         }
+     }
+ 
+-- 
+2.25.1
+

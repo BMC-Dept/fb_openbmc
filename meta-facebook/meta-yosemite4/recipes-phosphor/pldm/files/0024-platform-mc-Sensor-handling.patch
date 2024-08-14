@@ -1,7 +1,7 @@
-From fc224a99aea33f2ad953062b3706e85e8ab1b49b Mon Sep 17 00:00:00 2001
+From 1cea13b57b7a557dd4ad190cc70d016771f90de6 Mon Sep 17 00:00:00 2001
 From: Gilbert Chen <gilbert.chen@arm.com>
 Date: Wed, 23 Feb 2022 20:56:19 +0000
-Subject: [PATCH 02/10] platform-mc: Sensor handling
+Subject: [PATCH 24/40] platform-mc: Sensor handling
 
 Added sensor_manager and numeric_sensor class. The sensor_manager
 class manages the timing of sensor polling. The NumericSensor class
@@ -14,24 +14,26 @@ Signed-off-by: Gilbert Chen <gilbert.chen@arm.com>
 Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
 Change-Id: I4257f823ea26d7fdb322cc82d847e94db056258c
 ---
+ common/types.hpp                           |   1 +
  meson.build                                |   6 +
  meson.options                              |  24 +
  platform-mc/examples/pldm_t2_config.json   |  12 +
- platform-mc/manager.hpp                    |  21 +-
- platform-mc/numeric_sensor.cpp             | 687 +++++++++++++++++++++
+ platform-mc/manager.hpp                    |  34 +-
+ platform-mc/numeric_sensor.cpp             | 706 +++++++++++++++++++++
  platform-mc/numeric_sensor.hpp             | 219 +++++++
- platform-mc/sensor_manager.cpp             | 410 ++++++++++++
- platform-mc/sensor_manager.hpp             | 117 ++++
- platform-mc/terminus.cpp                   | 114 +++-
- platform-mc/terminus.hpp                   |  30 +
+ platform-mc/sensor_manager.cpp             | 472 ++++++++++++++
+ platform-mc/sensor_manager.hpp             | 135 ++++
+ platform-mc/terminus.cpp                   | 142 +++++
+ platform-mc/terminus.hpp                   |  38 ++
  platform-mc/terminus_manager.cpp           |  18 +
  platform-mc/test/meson.build               |   4 +
  platform-mc/test/mock_sensor_manager.hpp   |  24 +
  platform-mc/test/numeric_sensor_test.cpp   | 272 ++++++++
- platform-mc/test/platform_manager_test.cpp |   3 +
- platform-mc/test/sensor_manager_test.cpp   | 147 +++++
+ platform-mc/test/platform_manager_test.cpp |  47 +-
+ platform-mc/test/sensor_manager_test.cpp   | 172 +++++
+ platform-mc/test/terminus_test.cpp         |  60 ++
  pldmd/pldmd.cpp                            |   2 +-
- 17 files changed, 2107 insertions(+), 3 deletions(-)
+ 19 files changed, 2382 insertions(+), 6 deletions(-)
  create mode 100644 platform-mc/examples/pldm_t2_config.json
  create mode 100644 platform-mc/numeric_sensor.cpp
  create mode 100644 platform-mc/numeric_sensor.hpp
@@ -41,6 +43,18 @@ Change-Id: I4257f823ea26d7fdb322cc82d847e94db056258c
  create mode 100644 platform-mc/test/numeric_sensor_test.cpp
  create mode 100644 platform-mc/test/sensor_manager_test.cpp
 
+diff --git a/common/types.hpp b/common/types.hpp
+index 1a91235..661c2e7 100644
+--- a/common/types.hpp
++++ b/common/types.hpp
+@@ -15,6 +15,7 @@
+ namespace pldm
+ {
+ 
++using Availability = bool;
+ using eid = uint8_t;
+ using UUID = std::string;
+ using Request = std::vector<uint8_t>;
 diff --git a/meson.build b/meson.build
 index 100c0f9..68b1cc4 100644
 --- a/meson.build
@@ -116,7 +130,7 @@ index 0000000..4300fd3
 +    ]
 +}
 diff --git a/platform-mc/manager.hpp b/platform-mc/manager.hpp
-index 7636e94..342c028 100644
+index 7636e94..d8210b4 100644
 --- a/platform-mc/manager.hpp
 +++ b/platform-mc/manager.hpp
 @@ -7,6 +7,7 @@
@@ -137,7 +151,7 @@ index 7636e94..342c028 100644
      {}
  
      /** @brief Helper function to do the actions before discovering terminus
-@@ -68,6 +70,20 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
+@@ -68,6 +70,33 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
          terminusManager.removeMctpTerminus(mctpInfos);
      }
  
@@ -146,6 +160,19 @@ index 7636e94..342c028 100644
 +    void startSensorPolling(pldm_tid_t tid)
 +    {
 +        sensorManager.startPolling(tid);
++    }
++
++    /** @brief Helper function to set available state for pldm request (sensor
++     *         polling and event polling) of the terminus TID. The `false` state
++     *         will trigger stop flow in coroutine of sensor polling/event
++     *         polling task to stop.
++     */
++    void updateAvailableState(pldm_tid_t tid, Availability state)
++    {
++        if (termini.contains(tid))
++        {
++            sensorManager.updateAvailableState(tid, state);
++        }
 +    }
 +
 +    /** @brief Helper function to stop sensor polling of the terminus TID
@@ -158,7 +185,7 @@ index 7636e94..342c028 100644
    private:
      /** @brief List of discovered termini */
      TerminiMapper termini{};
-@@ -77,6 +93,9 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
+@@ -77,6 +106,9 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
  
      /** @brief Platform interface for calling the hook functions */
      PlatformManager platformManager;
@@ -170,10 +197,10 @@ index 7636e94..342c028 100644
  } // namespace pldm
 diff --git a/platform-mc/numeric_sensor.cpp b/platform-mc/numeric_sensor.cpp
 new file mode 100644
-index 0000000..e438061
+index 0000000..560ea2c
 --- /dev/null
 +++ b/platform-mc/numeric_sensor.cpp
-@@ -0,0 +1,687 @@
+@@ -0,0 +1,706 @@
 +#include "numeric_sensor.hpp"
 +
 +#include "libpldm/platform.h"
@@ -424,7 +451,7 @@ index 0000000..e438061
 +    baseUnitModifier = pdr->unit_modifier;
 +
 +    timeStamp = 0;
-+    updateTime = (uint64_t)DEFAULT_SENSOR_UPDATER_INTERVAL * 1000;
++    updateTime = static_cast<uint64_t>(DEFAULT_SENSOR_UPDATER_INTERVAL * 1000);
 +    if (!std::isnan(pdr->update_interval))
 +    {
 +        updateTime = pdr->update_interval * 1000000;
@@ -617,7 +644,7 @@ index 0000000..e438061
 +    baseUnitModifier = pdr->unit_modifier;
 +
 +    timeStamp = 0;
-+    updateTime = (uint64_t)DEFAULT_SENSOR_UPDATER_INTERVAL * 1000;
++    updateTime = static_cast<uint64_t>(DEFAULT_SENSOR_UPDATER_INTERVAL * 1000);
 +    try
 +    {
 +        valueIntf = std::make_unique<ValueIntf>(bus, path.c_str());
@@ -716,6 +743,12 @@ index 0000000..e438061
 +
 +void NumericSensor::updateReading(bool available, bool functional, double value)
 +{
++    if (!availabilityIntf || !operationalStatusIntf || !valueIntf)
++    {
++        lg2::error(
++            "Failed to update sensor {NAME} D-Bus interface don't exist.",
++            "NAME", sensorName);
++    }
 +    availabilityIntf->available(available);
 +    operationalStatusIntf->functional(functional);
 +    double curValue = valueIntf->value();
@@ -740,6 +773,12 @@ index 0000000..e438061
 +
 +void NumericSensor::handleErrGetSensorReading()
 +{
++    if (!operationalStatusIntf || !valueIntf)
++    {
++        lg2::error(
++            "Failed to update sensor {NAME} D-Bus interfaces don't exist.",
++            "NAME", sensorName);
++    }
 +    operationalStatusIntf->functional(false);
 +    valueIntf->value(std::numeric_limits<double>::quiet_NaN());
 +}
@@ -774,6 +813,13 @@ index 0000000..e438061
 +
 +void NumericSensor::updateThresholds()
 +{
++    if (!valueIntf)
++    {
++        lg2::error(
++            "Failed to update thresholds sensor {NAME} D-Bus interfaces don't exist.",
++            "NAME", sensorName);
++    }
++
 +    auto value = valueIntf->value();
 +
 +    if (thresholdWarningIntf &&
@@ -1088,10 +1134,10 @@ index 0000000..ff9e286
 +} // namespace pldm
 diff --git a/platform-mc/sensor_manager.cpp b/platform-mc/sensor_manager.cpp
 new file mode 100644
-index 0000000..97fbf1d
+index 0000000..654f737
 --- /dev/null
 +++ b/platform-mc/sensor_manager.cpp
-@@ -0,0 +1,410 @@
+@@ -0,0 +1,472 @@
 +#include "sensor_manager.hpp"
 +
 +#include "terminus_manager.hpp"
@@ -1163,6 +1209,7 @@ index 0000000..97fbf1d
 +    {
 +        return;
 +    }
++
 +    /* tid already initialize prioritySensors and roundRobinSensors list */
 +    if (sensorPollTimers.contains(tid))
 +    {
@@ -1186,6 +1233,8 @@ index 0000000..97fbf1d
 +        }
 +    }
 +
++    updateAvailableState(tid, true);
++
 +    if ((prioritySensors[tid].size() == 0) &&
 +        (roundRobinSensors[tid].size() == 0))
 +    {
@@ -1200,12 +1249,21 @@ index 0000000..97fbf1d
 +            std::bind_front(&SensorManager::doSensorPolling, this, tid));
 +    }
 +
-+    if (!sensorPollTimers[tid]->isRunning())
++    try
 +    {
-+        sensorPollTimers[tid]->start(
-+            duration_cast<std::chrono::milliseconds>(
-+                std::chrono::milliseconds(pollingTime)),
-+            true);
++        if (sensorPollTimers[tid] && !sensorPollTimers[tid]->isRunning())
++        {
++            sensorPollTimers[tid]->start(
++                duration_cast<std::chrono::milliseconds>(
++                    std::chrono::milliseconds(pollingTime)),
++                true);
++        }
++    }
++    catch (const std::exception& e)
++    {
++        lg2::info("Terminus ID {TID}: Failed to start sensor polling timer.",
++                  "TID", tid);
++        return;
 +    }
 +}
 +
@@ -1240,6 +1298,11 @@ index 0000000..97fbf1d
 +        stdexec::sync_wait(scope.on_empty());
 +        doSensorPollingTaskHandles.erase(tid);
 +    }
++
++    if (availableState.contains(tid))
++    {
++        availableState.erase(tid);
++    }
 +}
 +
 +void SensorManager::doSensorPolling(pldm_tid_t tid)
@@ -1271,8 +1334,20 @@ index 0000000..97fbf1d
 +        }
 +        else
 +        {
-+            lg2::info("Stopped sensor polling for Terminus ID {TID}", "TID",
-+                      tid);
++            lg2::info("Stopped polling for Terminus ID {TID}", "TID", tid);
++            try
++            {
++                if (sensorPollTimers.contains(tid) && sensorPollTimers[tid] &&
++                    sensorPollTimers[tid]->isRunning())
++                {
++                    sensorPollTimers[tid]->stop();
++                }
++            }
++            catch (const std::exception& e)
++            {
++                lg2::info("Terminus ID {TID}: Failed to stop polling timer.",
++                          "TID", tid);
++            }
 +            rcOpt = PLDM_SUCCESS;
 +        }
 +    }),
@@ -1302,6 +1377,15 @@ index 0000000..97fbf1d
 +                      "TID", tid, "NOW", pldm::utils::getCurrentSystemTime());
 +        }
 +
++        /* Stop sensor polling but still allow event polling */
++        if (!getAvailableState(tid))
++        {
++            lg2::info(
++                "Terminus ID {TID} is not available for PLDM request from {NOW}.",
++                "TID", tid, "NOW", pldm::utils::getCurrentSystemTime());
++            co_await stdexec::just_stopped();
++        }
++
 +        if (!termini.contains(tid))
 +        {
 +            co_return PLDM_SUCCESS;
@@ -1310,6 +1394,14 @@ index 0000000..97fbf1d
 +        // poll priority Sensors
 +        for (auto& sensor : prioritySensors[tid])
 +        {
++            if (!getAvailableState(tid))
++            {
++                lg2::info(
++                    "Terminus ID {TID} is not available for PLDM request from {NOW}.",
++                    "TID", tid, "NOW", pldm::utils::getCurrentSystemTime());
++                co_await stdexec::just_stopped();
++            }
++
 +            if (sensor->updateTime == std::numeric_limits<uint64_t>::max())
 +            {
 +                continue;
@@ -1317,7 +1409,7 @@ index 0000000..97fbf1d
 +
 +            sd_event_now(event.get(), CLOCK_MONOTONIC, &t1);
 +            elapsed = t1 - sensor->timeStamp;
-+            if (sensor->updateTime <= elapsed)
++            if ((sensor->updateTime <= elapsed) || (!sensor->timeStamp))
 +            {
 +                rc = co_await getSensorReading(sensor);
 +
@@ -1340,11 +1432,19 @@ index 0000000..97fbf1d
 +        auto toBeUpdated = roundRobinSensors[tid].size();
 +        while (((t1 - t0) < pollingTimeInUsec) && (toBeUpdated > 0))
 +        {
++            if (!getAvailableState(tid))
++            {
++                lg2::info(
++                    "Terminus ID {TID} is not available for PLDM request from {NOW}.",
++                    "TID", tid, "NOW", pldm::utils::getCurrentSystemTime());
++                co_await stdexec::just_stopped();
++            }
++
 +            auto sensor = roundRobinSensors[tid].front();
 +
 +            sd_event_now(event.get(), CLOCK_MONOTONIC, &t1);
 +            elapsed = t1 - sensor->timeStamp;
-+            if (sensor->updateTime <= elapsed)
++            if ((sensor->updateTime <= elapsed) || (!sensor->timeStamp))
 +            {
 +                rc = co_await getSensorReading(sensor);
 +
@@ -1404,6 +1504,14 @@ index 0000000..97fbf1d
 +            "Failed to encode request GetSensorReading for terminus ID {TID}, sensor Id {ID}, error {RC}.",
 +            "TID", tid, "ID", sensorId, "RC", rc);
 +        co_return rc;
++    }
++
++    if (!getAvailableState(tid))
++    {
++        lg2::info(
++            "Terminus ID {TID} is not available for PLDM request from {NOW}.",
++            "TID", tid, "NOW", pldm::utils::getCurrentSystemTime());
++        co_await stdexec::just_stopped();
 +    }
 +
 +    const pldm_msg* responseMsg = nullptr;
@@ -1504,10 +1612,10 @@ index 0000000..97fbf1d
 +} // namespace pldm
 diff --git a/platform-mc/sensor_manager.hpp b/platform-mc/sensor_manager.hpp
 new file mode 100644
-index 0000000..861a3d4
+index 0000000..f21a5ab
 --- /dev/null
 +++ b/platform-mc/sensor_manager.hpp
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,135 @@
 +#pragma once
 +
 +#include "libpldm/platform.h"
@@ -1559,6 +1667,24 @@ index 0000000..861a3d4
 +     */
 +    void stopPolling(pldm_tid_t tid);
 +
++    /** @brief Set available state of terminus for pldm request.
++     */
++    void updateAvailableState(pldm_tid_t tid, Availability state)
++    {
++        availableState[tid] = state;
++    };
++
++    /** @brief Get available state of terminus for pldm request.
++     */
++    bool getAvailableState(pldm_tid_t tid)
++    {
++        if (!availableState.contains(tid))
++        {
++            return false;
++        }
++        return availableState[tid];
++    };
++
 +  protected:
 +    /** @brief start a coroutine for polling all sensors.
 +     */
@@ -1606,8 +1732,8 @@ index 0000000..861a3d4
 +    std::map<pldm_tid_t, std::pair<exec::async_scope, std::optional<int>>>
 +        doSensorPollingTaskHandles;
 +
-+    /** @brief force stop polling sensors*/
-+    bool forceStopPolling = false;
++    /** @brief Available state for pldm request of terminus */
++    std::map<pldm_tid_t, Availability> availableState;
 +
 +    /** @brief verbose tracing flag */
 +    bool verbose;
@@ -1626,37 +1752,58 @@ index 0000000..861a3d4
 +} // namespace platform_mc
 +} // namespace pldm
 diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
-index 333813e..95caa40 100644
+index 456efde..c725977 100644
 --- a/platform-mc/terminus.cpp
 +++ b/platform-mc/terminus.cpp
-@@ -11,7 +11,22 @@ namespace platform_mc
+@@ -70,6 +70,30 @@ std::optional<std::string> Terminus::findTerminusName()
+     return std::nullopt;
+ }
  
- Terminus::Terminus(pldm_tid_t tid, uint64_t supportedTypes) :
-     initialized(false), tid(tid), supportedTypes(supportedTypes)
--{}
++bool Terminus::createInventoryPath(std::string tName)
 +{
-+    inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/PLDM_Device_" +
-+                    std::to_string(tid);
++    if (tName == "")
++    {
++        return false;
++    }
++
++    inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/" + tName;
 +    try
 +    {
 +        inventoryItemBoardInft = std::make_unique<InventoryItemBoardIntf>(
 +            utils::DBusHandler::getBus(), inventoryPath.c_str());
++        return true;
 +    }
 +    catch (const sdbusplus::exception_t& e)
 +    {
 +        lg2::error(
 +            "Failed to create Inventory Board interface for device {PATH}",
 +            "PATH", inventoryPath);
-+        throw sdbusplus::xyz::openbmc_project::Common::Error::InvalidArgument();
 +    }
++
++    return false;
 +}
- 
- bool Terminus::doesSupportType(uint8_t type)
++
+ void Terminus::parseTerminusPDRs()
  {
-@@ -95,6 +110,17 @@ bool Terminus::parsePDRs()
-             rc = false;
-         }
+     std::vector<std::shared_ptr<pldm_numeric_sensor_value_pdr>>
+@@ -163,6 +187,30 @@ void Terminus::parseTerminusPDRs()
+     {
+         terminusName = tName.value();
      }
++
++    if (terminusName == "" &&
++        (numericSensorPdrs.size() || compactNumericSensorPdrs.size()))
++    {
++        lg2::error(
++            "Terminus ID {TID}: DOES NOT have name. Skip Adding sensors.",
++            "TID", tid);
++        return;
++    }
++
++    if (createInventoryPath(terminusName))
++    {
++        lg2::error("Terminus ID {TID}: Created Inventory path.", "TID", tid);
++    }
 +
 +    for (auto pdr : numericSensorPdrs)
 +    {
@@ -1667,18 +1814,10 @@ index 333813e..95caa40 100644
 +    {
 +        addCompactNumericSensor(pdr);
 +    }
-+
-     return rc;
  }
  
-@@ -169,11 +195,56 @@ std::shared_ptr<pldm_numeric_sensor_value_pdr>
-     auto rc = decode_numeric_sensor_pdr_data(ptr, pdr.size(), parsedPdr.get());
-     if (rc)
-     {
-+        lg2::error("Failed to decode Numeric Sensor PDR data, error {RC} ",
-+                   "RC", rc);
-         return nullptr;
-     }
+ std::shared_ptr<SensorAuxiliaryNames>
+@@ -327,6 +375,55 @@ std::shared_ptr<pldm_numeric_sensor_value_pdr>
      return parsedPdr;
  }
  
@@ -1686,8 +1825,15 @@ index 333813e..95caa40 100644
 +    const std::shared_ptr<pldm_numeric_sensor_value_pdr> pdr)
 +{
 +    uint16_t sensorId = pdr->sensor_id;
-+    std::string sensorName = "PLDM_Device_" + std::to_string(sensorId) + "_" +
-+                             std::to_string(tid);
++    if (terminusName == "")
++    {
++        lg2::error(
++            "Terminus ID {TID}: DOES NOT have name. Skip Adding sensors.",
++            "TID", tid);
++        return;
++    }
++    std::string sensorName = terminusName + "_" + "Sensor_" +
++                             std::to_string(pdr->sensor_id);
 +
 +    if (pdr->sensor_auxiliary_names_pdr)
 +    {
@@ -1700,10 +1846,9 @@ index 333813e..95caa40 100644
 +            {
 +                for (const auto& [languageTag, name] : sensorNames[0])
 +                {
-+                    if (languageTag == "en")
++                    if (languageTag == "en" && name != "")
 +                    {
-+                        sensorName = name + "_" + std::to_string(sensorId) +
-+                                     "_" + std::to_string(tid);
++                        sensorName = terminusName + "_" + name;
 +                    }
 +                }
 +            }
@@ -1728,7 +1873,7 @@ index 333813e..95caa40 100644
  std::shared_ptr<SensorAuxiliaryNames>
      Terminus::parseCompactNumericSensorNames(const std::vector<uint8_t>& sPdr)
  {
-@@ -247,5 +318,46 @@ std::shared_ptr<pldm_compact_numeric_sensor_pdr>
+@@ -396,5 +493,50 @@ std::shared_ptr<pldm_compact_numeric_sensor_pdr>
      return parsedPdr;
  }
  
@@ -1736,8 +1881,15 @@ index 333813e..95caa40 100644
 +    const std::shared_ptr<pldm_compact_numeric_sensor_pdr> pdr)
 +{
 +    uint16_t sensorId = pdr->sensor_id;
-+    std::string sensorName = "PLDM_Device_" + std::to_string(sensorId) + "_" +
-+                             std::to_string(tid);
++    if (terminusName == "")
++    {
++        lg2::error(
++            "Terminus ID {TID}: DOES NOT have name. Skip Adding sensors.",
++            "TID", tid);
++        return;
++    }
++    std::string sensorName = terminusName + "_" + "Sensor_" +
++                             std::to_string(pdr->sensor_id);
 +
 +    auto sensorAuxiliaryNames = getSensorAuxiliaryNames(sensorId);
 +    if (sensorAuxiliaryNames)
@@ -1747,12 +1899,9 @@ index 333813e..95caa40 100644
 +        {
 +            for (const auto& [languageTag, name] : sensorNames[0])
 +            {
-+                if (languageTag == "en")
++                if (languageTag == "en" && name != "")
 +                {
-+                    {
-+                        sensorName = name + "_" + std::to_string(sensorId) +
-+                                     "_" + std::to_string(tid);
-+                    }
++                    sensorName = terminusName + "_" + name;
 +                }
 +            }
 +        }
@@ -1776,7 +1925,7 @@ index 333813e..95caa40 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/terminus.hpp b/platform-mc/terminus.hpp
-index 8fa4ea0..9105b05 100644
+index 029b69e..bdcb1d3 100644
 --- a/platform-mc/terminus.hpp
 +++ b/platform-mc/terminus.hpp
 @@ -3,7 +3,9 @@
@@ -1789,16 +1938,16 @@ index 8fa4ea0..9105b05 100644
  
  #include <sdbusplus/server/object.hpp>
  #include <sdeventplus/event.hpp>
-@@ -28,6 +30,8 @@ using SensorName = std::string;
+@@ -32,6 +34,8 @@ using SensorName = std::string;
  using SensorAuxiliaryNames = std::tuple<
      SensorId, SensorCnt,
      std::vector<std::vector<std::pair<NameLanguageTag, SensorName>>>>;
 +using InventoryItemBoardIntf = sdbusplus::server::object_t<
 +    sdbusplus::xyz::openbmc_project::Inventory::Item::server::Board>;
  
- /**
-  * @brief Terminus
-@@ -98,6 +102,9 @@ class Terminus
+ /** @struct EntityKey
+  *
+@@ -134,6 +138,9 @@ class Terminus
      /** @brief A flag to indicate if terminus has been initialized */
      bool initialized = false;
  
@@ -1808,10 +1957,10 @@ index 8fa4ea0..9105b05 100644
      /** @brief Get Sensor Auxiliary Names by sensorID
       *
       *  @param[in] id - sensor ID
-@@ -106,6 +113,15 @@ class Terminus
-     std::shared_ptr<SensorAuxiliaryNames> getSensorAuxiliaryNames(SensorId id);
+@@ -148,6 +155,15 @@ class Terminus
+      */
+     std::optional<std::string> findTerminusName();
  
-   private:
 +    /** @brief Construct the NumericSensor sensor class for the PLDM sensor.
 +     *         The NumericSensor class will handle create D-Bus object path,
 +     *         provide the APIs to update sensor value, threshold...
@@ -1824,9 +1973,9 @@ index 8fa4ea0..9105b05 100644
      /** @brief Parse the numeric sensor PDRs
       *
       *  @param[in] pdrData - the response PDRs from GetPDR command
-@@ -122,6 +138,14 @@ class Terminus
-     std::shared_ptr<SensorAuxiliaryNames>
-         parseSensorAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData);
+@@ -172,6 +188,14 @@ class Terminus
+     std::shared_ptr<EntityAuxiliaryNames>
+         parseEntityAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData);
  
 +    /** @brief Construct the NumericSensor sensor class for the compact numeric
 +     *         PLDM sensor.
@@ -1839,11 +1988,26 @@ index 8fa4ea0..9105b05 100644
      /** @brief Parse the compact numeric sensor PDRs
       *
       *  @param[in] pdrData - the response PDRs from GetPDR command
-@@ -157,6 +181,12 @@ class Terminus
-     /* @brief Sensor Auxiliary Name list */
-     std::vector<std::shared_ptr<SensorAuxiliaryNames>>
-         sensorAuxiliaryNamesTbl{};
+@@ -188,6 +212,15 @@ class Terminus
+     std::shared_ptr<SensorAuxiliaryNames>
+         parseCompactNumericSensorNames(const std::vector<uint8_t>& pdrData);
+ 
++    /** @brief Create the terminus inventory path to
++     *         /xyz/openbmc_project/inventory/Item/Board/.
++     *
++     *  @param[in] tName - the terminus name
++     *  @return true/false: True if there is no error in creating inventory path
++     *
++     */
++    bool createInventoryPath(std::string tName);
 +
+     /* @brief The terminus's TID */
+     pldm_tid_t tid;
+ 
+@@ -214,6 +247,11 @@ class Terminus
+ 
+     /** @brief Terminus name */
+     EntityName terminusName{};
 +    /* @brief The pointer of iventory D-Bus interface for the terminus */
 +    std::unique_ptr<InventoryItemBoardIntf> inventoryItemBoardInft = nullptr;
 +
@@ -1853,10 +2017,10 @@ index 8fa4ea0..9105b05 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/terminus_manager.cpp b/platform-mc/terminus_manager.cpp
-index 54d749d..e9b6781 100644
+index 0b5cf88..c5d3f53 100644
 --- a/platform-mc/terminus_manager.cpp
 +++ b/platform-mc/terminus_manager.cpp
-@@ -160,6 +160,7 @@ auto TerminusManager::findTeminusPtr(const MctpInfo& mctpInfo)
+@@ -160,6 +160,7 @@ auto TerminusManager::findTerminusPtr(const MctpInfo& mctpInfo)
  
  exec::task<int> TerminusManager::discoverMctpTerminusTask()
  {
@@ -2231,18 +2395,82 @@ index 0000000..8b59401
 +    EXPECT_EQ(false, lowAlarm);
 +}
 diff --git a/platform-mc/test/platform_manager_test.cpp b/platform-mc/test/platform_manager_test.cpp
-index 2df2b48..5fa7780 100644
+index 3b97bd0..774ec6d 100644
 --- a/platform-mc/test/platform_manager_test.cpp
 +++ b/platform-mc/test/platform_manager_test.cpp
-@@ -150,6 +150,7 @@ TEST_F(PlatformManagerTest, initTerminusTest)
+@@ -63,7 +63,7 @@ TEST_F(PlatformManagerTest, initTerminusTest)
+             0x0, 0x0,  0x0,  0x0,          0x0, 0x0, // updateTime
+             0x0, 0x0,  0x0,  0x0,          0x0, 0x0, 0x0,
+             0x0, 0x0,  0x0,  0x0,          0x0, 0x0, // OEMUpdateTime
+-            1,   0x0,  0x0,  0x0,                    // recordCount
++            2,   0x0,  0x0,  0x0,                    // recordCount
+             0x0, 0x1,  0x0,  0x0,                    // repositorySize
+             59,  0x0,  0x0,  0x0,                    // largestRecordSize
+             0x0 // dataTransferHandleTimeout
+@@ -76,12 +76,12 @@ TEST_F(PlatformManagerTest, initTerminusTest)
+     // queue getPDR responses
+     const size_t getPdrRespLen = 81;
+     std::array<uint8_t, sizeof(pldm_msg_hdr) + getPdrRespLen> getPdrResp{
+-        0x0, 0x02, 0x51, PLDM_SUCCESS, 0x0, 0x0, 0x0, 0x0, // nextRecordHandle
++        0x0, 0x02, 0x51, PLDM_SUCCESS, 0x1, 0x0, 0x0, 0x0, // nextRecordHandle
+         0x0, 0x0, 0x0, 0x0, // nextDataTransferHandle
+         0x5,                // transferFlag
+         69, 0x0,            // responseCount
+         // numeric Sensor PDR
+-        0x1, 0x0, 0x0,
++        0x0, 0x0, 0x0,
+         0x0,                     // record handle
+         0x1,                     // PDRHeaderVersion
+         PLDM_NUMERIC_SENSOR_PDR, // PDRType
+@@ -147,9 +147,46 @@ TEST_F(PlatformManagerTest, initTerminusTest)
+                                              sizeof(getPdrResp));
+     EXPECT_EQ(rc, PLDM_SUCCESS);
+ 
++    const size_t getPdrAuxNameRespLen = 39;
++    std::array<uint8_t, sizeof(pldm_msg_hdr) + getPdrAuxNameRespLen>
++        getPdrAuxNameResp{
++            0x0, 0x02, 0x51, PLDM_SUCCESS, 0x0, 0x0, 0x0,
++            0x0,                // nextRecordHandle
++            0x0, 0x0, 0x0, 0x0, // nextDataTransferHandle
++            0x5,                // transferFlag
++            0x1b, 0x0,          // responseCount
++            // Common PDR Header
++            0x1, 0x0, 0x0,
++            0x0,                             // record handle
++            0x1,                             // PDRHeaderVersion
++            PLDM_ENTITY_AUXILIARY_NAMES_PDR, // PDRType
++            0x1,
++            0x0,                             // recordChangeNumber
++            0x11,
++            0,                               // dataLength
++            /* Entity Auxiliary Names PDR Data*/
++            3,
++            0x80, // entityType system software
++            0x1,
++            0x0,  // Entity instance number =1
++            0,
++            0,    // Overal system
++            0,    // shared Name Count one name only
++            01,   // nameStringCount
++            0x65, 0x6e, 0x00,
++            0x00, // Language Tag "en"
++            0x53, 0x00, 0x30, 0x00,
++            0x00  // Entity Name "S0"
++        };
++    rc = mockTerminusManager.enqueueResponse(
++        (pldm_msg*)getPdrAuxNameResp.data(), sizeof(getPdrAuxNameResp));
++    EXPECT_EQ(rc, PLDM_SUCCESS);
++
      stdexec::sync_wait(platformManager.initTerminus());
      EXPECT_EQ(true, terminus->initialized);
-     EXPECT_EQ(1, terminus->pdrs.size());
+-    EXPECT_EQ(1, terminus->pdrs.size());
++    EXPECT_EQ(2, terminus->pdrs.size());
 +    EXPECT_EQ(1, terminus->numericSensors.size());
++    EXPECT_EQ("S0", terminus->getTerminusName());
  }
  
- TEST_F(PlatformManagerTest, initTerminusDontSupportGetPDRTest)
-@@ -282,6 +283,7 @@ TEST_F(PlatformManagerTest, negativeInitTerminusTest1)
+ TEST_F(PlatformManagerTest, parseTerminusNameTest)
+@@ -439,6 +476,7 @@ TEST_F(PlatformManagerTest, negativeInitTerminusTest1)
      stdexec::sync_wait(platformManager.initTerminus());
      EXPECT_EQ(true, terminus->initialized);
      EXPECT_EQ(0, terminus->pdrs.size());
@@ -2250,7 +2478,7 @@ index 2df2b48..5fa7780 100644
  }
  
  TEST_F(PlatformManagerTest, negativeInitTerminusTest2)
-@@ -313,4 +315,5 @@ TEST_F(PlatformManagerTest, negativeInitTerminusTest2)
+@@ -470,4 +508,5 @@ TEST_F(PlatformManagerTest, negativeInitTerminusTest2)
      stdexec::sync_wait(platformManager.initTerminus());
      EXPECT_EQ(true, terminus->initialized);
      EXPECT_EQ(0, terminus->pdrs.size());
@@ -2258,10 +2486,10 @@ index 2df2b48..5fa7780 100644
  }
 diff --git a/platform-mc/test/sensor_manager_test.cpp b/platform-mc/test/sensor_manager_test.cpp
 new file mode 100644
-index 0000000..cd4e5a4
+index 0000000..03cb7fd
 --- /dev/null
 +++ b/platform-mc/test/sensor_manager_test.cpp
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,172 @@
 +#include "common/instance_id.hpp"
 +#include "common/types.hpp"
 +#include "mock_sensor_manager.hpp"
@@ -2387,6 +2615,30 @@ index 0000000..cd4e5a4
 +        0,                             // fatalHigh
 +        0                              // fatalLow
 +    };
++
++    std::vector<uint8_t> pdr2{
++        0x1, 0x0, 0x0,
++        0x0,                             // record handle
++        0x1,                             // PDRHeaderVersion
++        PLDM_ENTITY_AUXILIARY_NAMES_PDR, // PDRType
++        0x1,
++        0x0,                             // recordChangeNumber
++        0x11,
++        0,                               // dataLength
++        /* Entity Auxiliary Names PDR Data*/
++        3,
++        0x80, // entityType system software
++        0x1,
++        0x0,  // Entity instance number =1
++        0,
++        0,    // Overal system
++        0,    // shared Name Count one name only
++        01,   // nameStringCount
++        0x65, 0x6e, 0x00,
++        0x00, // Language Tag "en"
++        0x53, 0x00, 0x30, 0x00,
++        0x00  // Entity Name "S0"
++    };
 +};
 +
 +TEST_F(SensorManagerTest, sensorPollingTest)
@@ -2397,7 +2649,8 @@ index 0000000..cd4e5a4
 +    pldm_tid_t tid = 1;
 +    termini[tid] = std::make_shared<pldm::platform_mc::Terminus>(tid, 0);
 +    termini[tid]->pdrs.push_back(pdr1);
-+    termini[tid]->parsePDRs();
++    termini[tid]->pdrs.push_back(pdr2);
++    termini[tid]->parseTerminusPDRs();
 +
 +    EXPECT_CALL(sensorManager, doSensorPolling(tid))
 +        .Times(Between(expectedTimes - 3, expectedTimes + 3))
@@ -2409,11 +2662,87 @@ index 0000000..cd4e5a4
 +
 +    sensorManager.stopPolling(tid);
 +}
+diff --git a/platform-mc/test/terminus_test.cpp b/platform-mc/test/terminus_test.cpp
+index 8919b19..34a8fea 100644
+--- a/platform-mc/test/terminus_test.cpp
++++ b/platform-mc/test/terminus_test.cpp
+@@ -62,7 +62,32 @@ TEST(TerminusTest, parseSensorAuxiliaryNamesPDRTest)
+         0x0 // sensorName
+     };
+ 
++    std::vector<uint8_t> pdr2{
++        0x1, 0x0, 0x0,
++        0x0,                             // record handle
++        0x1,                             // PDRHeaderVersion
++        PLDM_ENTITY_AUXILIARY_NAMES_PDR, // PDRType
++        0x1,
++        0x0,                             // recordChangeNumber
++        0x11,
++        0,                               // dataLength
++        /* Entity Auxiliary Names PDR Data*/
++        3,
++        0x80, // entityType system software
++        0x1,
++        0x0,  // Entity instance number =1
++        0,
++        0,    // Overal system
++        0,    // shared Name Count one name only
++        01,   // nameStringCount
++        0x65, 0x6e, 0x00,
++        0x00, // Language Tag "en"
++        0x53, 0x00, 0x30, 0x00,
++        0x00  // Entity Name "S0"
++    };
++
+     t1.pdrs.emplace_back(pdr1);
++    t1.pdrs.emplace_back(pdr2);
+     t1.parseTerminusPDRs();
+ 
+     auto sensorAuxNames = t1.getSensorAuxiliaryNames(0);
+@@ -79,3 +104,38 @@ TEST(TerminusTest, parseSensorAuxiliaryNamesPDRTest)
+     EXPECT_EQ("en", names[0][0].first);
+     EXPECT_EQ("TEMP1", names[0][0].second);
+ }
++
++TEST(TerminusTest, parsePDRTestNoSensorPDR)
++{
++    auto t1 = pldm::platform_mc::Terminus(1,
++                                          1 << PLDM_BASE | 1 << PLDM_PLATFORM);
++    std::vector<uint8_t> pdr1{
++        0x1, 0x0, 0x0,
++        0x0,                             // record handle
++        0x1,                             // PDRHeaderVersion
++        PLDM_ENTITY_AUXILIARY_NAMES_PDR, // PDRType
++        0x1,
++        0x0,                             // recordChangeNumber
++        0x11,
++        0,                               // dataLength
++        /* Entity Auxiliary Names PDR Data*/
++        3,
++        0x80, // entityType system software
++        0x1,
++        0x0,  // Entity instance number =1
++        0,
++        0,    // Overal system
++        0,    // shared Name Count one name only
++        01,   // nameStringCount
++        0x65, 0x6e, 0x00,
++        0x00, // Language Tag "en"
++        0x53, 0x00, 0x30, 0x00,
++        0x00  // Entity Name "S0"
++    };
++
++    t1.pdrs.emplace_back(pdr1);
++    t1.parseTerminusPDRs();
++
++    auto sensorAuxNames = t1.getSensorAuxiliaryNames(1);
++    EXPECT_EQ(nullptr, sensorAuxNames);
++}
 diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
-index 4df71e9..768c6c9 100644
+index 8695fe8..32b5a57 100644
 --- a/pldmd/pldmd.cpp
 +++ b/pldmd/pldmd.cpp
-@@ -187,7 +187,7 @@ int main(int argc, char** argv)
+@@ -196,7 +196,7 @@ int main(int argc, char** argv)
      auto event = Event::get_default();
      auto& bus = pldm::utils::DBusHandler::getBus();
      sdbusplus::server::manager_t objManager(bus,

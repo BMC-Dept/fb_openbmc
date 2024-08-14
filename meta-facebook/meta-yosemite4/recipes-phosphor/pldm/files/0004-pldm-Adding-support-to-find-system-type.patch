@@ -1,0 +1,155 @@
+From 0a4226966443501ca1a57e8e478fe7e554f4824f Mon Sep 17 00:00:00 2001
+From: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+Date: Mon, 3 Jun 2024 00:42:56 -0500
+Subject: [PATCH 04/40] pldm: Adding support to find system type
+
+This commit adds support to find the system type by checking the JSON
+directory presence when entity manager sends the system names. Once
+system type is set then PLDM continues the further operations like pdr
+generation, system specific bios etc...
+
+Testing:
+Tested on real hardware
+
+Change-Id: I3b0a7725a72cd3a3c8fe0a4c6ff6b38510a2a2ea
+Signed-off-by: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+---
+ libpldmresponder/platform_config.cpp | 47 +++++++++++++++++++++++++---
+ libpldmresponder/platform_config.hpp | 16 +++++++++-
+ pldmd/pldmd.cpp                      |  3 +-
+ 3 files changed, 60 insertions(+), 6 deletions(-)
+
+diff --git a/libpldmresponder/platform_config.cpp b/libpldmresponder/platform_config.cpp
+index 8bc6b06..8d7fe79 100644
+--- a/libpldmresponder/platform_config.cpp
++++ b/libpldmresponder/platform_config.cpp
+@@ -39,11 +39,14 @@ void Handler::systemCompatibleCallback(sdbusplus::message_t& msg)
+     auto names =
+         std::get<pldm::utils::Interfaces>(properties.at(namesProperty));
+ 
+-    std::string systemType;
+     if (!names.empty())
+     {
+-        // get only the first system type
+-        systemType = names.front();
++        std::optional<std::string> sysType = getSysSpecificJsonDir(sysDirPath,
++                                                                   names);
++        if (sysType.has_value())
++        {
++            systemType = sysType.value();
++        }
+         if (sysTypeCallback)
+         {
+             sysTypeCallback(systemType, true);
+@@ -103,9 +106,14 @@ std::optional<std::filesystem::path> Handler::getPlatformName()
+ 
+                     if (!systemList.empty())
+                     {
+-                        systemType = systemList.at(0);
++                        std::optional<std::string> sysType =
++                            getSysSpecificJsonDir(sysDirPath, systemList);
+                         // once systemtype received,then resetting a callback
+                         systemCompatibleMatchCallBack.reset();
++                        if (sysType.has_value())
++                        {
++                            systemType = sysType.value();
++                        }
+                         return fs::path{systemType};
+                     }
+                 }
+@@ -128,6 +136,37 @@ std::optional<std::filesystem::path> Handler::getPlatformName()
+     return std::nullopt;
+ }
+ 
++std::optional<std::string>
++    Handler::getSysSpecificJsonDir(const fs::path& dirPath,
++                                   const std::vector<std::string>& dirNames)
++{
++    // The current setup assumes that the BIOS and PDR configurations always
++    // come from the same system type. If, in the future, we need to use BIOS
++    // and PDR configurations from different system types, we should create
++    // separate system type folders for each and update the logic to support
++    // this.
++
++    if (dirPath.empty())
++    {
++        return std::nullopt;
++    }
++
++    for (const auto& dirEntry : std::filesystem::directory_iterator{dirPath})
++    {
++        if (dirEntry.is_directory())
++        {
++            const auto sysDir = dirEntry.path().filename().string();
++            if (std::find(dirNames.begin(), dirNames.end(), sysDir) !=
++                dirNames.end())
++            {
++                return sysDir;
++            }
++        }
++    }
++
++    return std::nullopt;
++}
++
+ void Handler::registerSystemTypeCallback(SystemTypeCallback callback)
+ {
+     sysTypeCallback = callback;
+diff --git a/libpldmresponder/platform_config.hpp b/libpldmresponder/platform_config.hpp
+index b8a8b6e..578751b 100644
+--- a/libpldmresponder/platform_config.hpp
++++ b/libpldmresponder/platform_config.hpp
+@@ -20,7 +20,7 @@ using SystemTypeCallback = std::function<void(const std::string&, bool)>;
+ class Handler : public CmdHandler
+ {
+   public:
+-    Handler()
++    Handler(const fs::path sysDirPath = {}) : sysDirPath(sysDirPath)
+     {
+         systemCompatibleMatchCallBack =
+             std::make_unique<sdbusplus::bus::match_t>(
+@@ -46,6 +46,17 @@ class Handler : public CmdHandler
+     void registerSystemTypeCallback(SystemTypeCallback callback);
+ 
+   private:
++    /** @brief Interface to get the first available directory
++     *         from the received list
++     *
++     *  @param[in] dirPath  - Directory path to search system specific directory
++     *  @param[in] dirNames - System names retrieved from remote application
++     *  @return - The system type information
++     */
++    std::optional<std::string>
++        getSysSpecificJsonDir(const fs::path& dirPath,
++                              const std::vector<std::string>& dirNames);
++
+     /** @brief system type/model */
+     std::string systemType;
+ 
+@@ -54,6 +65,9 @@ class Handler : public CmdHandler
+ 
+     /** @brief Registered Callback */
+     SystemTypeCallback sysTypeCallback;
++
++    /** @brief system specific json file directory path */
++    fs::path sysDirPath;
+ };
+ 
+ } // namespace platform_config
+diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
+index 4df71e9..9613e02 100644
+--- a/pldmd/pldmd.cpp
++++ b/pldmd/pldmd.cpp
+@@ -232,7 +232,8 @@ int main(int argc, char** argv)
+     std::unique_ptr<DbusToPLDMEvent> dbusToPLDMEventHandler;
+     DBusHandler dbusHandler;
+     std::unique_ptr<platform_config::Handler> platformConfigHandler{};
+-    platformConfigHandler = std::make_unique<platform_config::Handler>();
++    platformConfigHandler =
++        std::make_unique<platform_config::Handler>(PDR_JSONS_DIR);
+ 
+     if (hostEID)
+     {
+-- 
+2.25.1
+

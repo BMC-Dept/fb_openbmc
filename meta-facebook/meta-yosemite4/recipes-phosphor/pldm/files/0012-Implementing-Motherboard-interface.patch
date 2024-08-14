@@ -1,0 +1,138 @@
+From 2ed986c91a0c64c967c85607caa2b66d634e1c07 Mon Sep 17 00:00:00 2001
+From: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+Date: Wed, 8 May 2024 02:20:47 -0500
+Subject: [PATCH 12/40] Implementing Motherboard interface
+
+This commit adds support to host motherboard interface which can be
+used to generate Dbus Object paths. The Dbus object paths will be
+represents the hardware components within the system architecture and
+help to understand the architecture better way. The motherboard will
+represent the system board and other entity are connected to it.
+The interface is implemented at:[1]
+
+[1] https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/xyz/openbmc_project/Inventory/Item/Board/Motherboard.interface.yaml
+
+Change-Id: Ie7987ea0fb03d2d6ffd9e485924cfea7446d97d9
+Signed-off-by: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+---
+ host-bmc/dbus/custom_dbus.cpp |  9 +++++++++
+ host-bmc/dbus/custom_dbus.hpp |  8 ++++++++
+ host-bmc/dbus/motherboard.hpp | 38 +++++++++++++++++++++++++++++++++++
+ host-bmc/host_pdr_handler.cpp |  4 ++++
+ 4 files changed, 59 insertions(+)
+ create mode 100644 host-bmc/dbus/motherboard.hpp
+
+diff --git a/host-bmc/dbus/custom_dbus.cpp b/host-bmc/dbus/custom_dbus.cpp
+index 204c9fa..1277d7a 100644
+--- a/host-bmc/dbus/custom_dbus.cpp
++++ b/host-bmc/dbus/custom_dbus.cpp
+@@ -117,5 +117,14 @@ void CustomDBus::setCableAttributes(const std::string& path, double length,
+     }
+ }
+ 
++void CustomDBus::implementMotherboardInterface(const std::string& path)
++{
++    if (!motherboard.contains(path))
++    {
++        motherboard.emplace(path,
++                            std::make_unique<Motherboard>(
++                                pldm::utils::DBusHandler::getBus(), path));
++    }
++}
+ } // namespace dbus
+ } // namespace pldm
+diff --git a/host-bmc/dbus/custom_dbus.hpp b/host-bmc/dbus/custom_dbus.hpp
+index 8c1dba9..9baa1dc 100644
+--- a/host-bmc/dbus/custom_dbus.hpp
++++ b/host-bmc/dbus/custom_dbus.hpp
+@@ -3,6 +3,7 @@
+ #include "cable.hpp"
+ #include "common/utils.hpp"
+ #include "cpu_core.hpp"
++#include "motherboard.hpp"
+ #include "pcie_device.hpp"
+ #include "pcie_slot.hpp"
+ 
+@@ -127,6 +128,12 @@ class CustomDBus
+      */
+     void setCableAttributes(const std::string& path, double length,
+                             const std::string& cableDescription);
++    /** @brief Implement interface for motherboard property
++     *
++     *  @param[in] path  - The object path
++     *
++     */
++    void implementMotherboardInterface(const std::string& path);
+ 
+   private:
+     std::unordered_map<ObjectPath, std::unique_ptr<LocationIntf>> location;
+@@ -134,6 +141,7 @@ class CustomDBus
+     std::unordered_map<ObjectPath, std::unique_ptr<PCIeDevice>> pcieDevice;
+     std::unordered_map<ObjectPath, std::unique_ptr<PCIeSlot>> pcieSlot;
+     std::unordered_map<ObjectPath, std::unique_ptr<Cable>> cable;
++    std::unordered_map<ObjectPath, std::unique_ptr<Motherboard>> motherboard;
+ };
+ 
+ } // namespace dbus
+diff --git a/host-bmc/dbus/motherboard.hpp b/host-bmc/dbus/motherboard.hpp
+new file mode 100644
+index 0000000..abf061c
+--- /dev/null
++++ b/host-bmc/dbus/motherboard.hpp
+@@ -0,0 +1,38 @@
++#pragma once
++
++#include <sdbusplus/bus.hpp>
++#include <sdbusplus/server.hpp>
++#include <sdbusplus/server/object.hpp>
++#include <xyz/openbmc_project/Inventory/Item/Board/Motherboard/server.hpp>
++
++#include <string>
++
++namespace pldm
++{
++namespace dbus
++{
++using ItemMotherboard =
++    sdbusplus::server::object_t<sdbusplus::xyz::openbmc_project::Inventory::
++                                    Item::Board::server::Motherboard>;
++
++/** @class Motherboard
++ *  @brief This class is mapped to Inventory.Item.Board.Motherboard properties
++ *         in D-Bus interface path.
++ */
++class Motherboard : public ItemMotherboard
++{
++  public:
++    Motherboard() = delete;
++    ~Motherboard() = default;
++    Motherboard(const Motherboard&) = delete;
++    Motherboard& operator=(const Motherboard&) = delete;
++    Motherboard(Motherboard&&) = default;
++    Motherboard& operator=(Motherboard&&) = default;
++
++    Motherboard(sdbusplus::bus_t& bus, const std::string& objPath) :
++        ItemMotherboard(bus, objPath.c_str())
++    {}
++};
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index 7758858..bbc9816 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -1139,6 +1139,10 @@ void HostPDRHandler::createDbusObjects(const PDRList& fruRecordSetPDRs)
+                 CustomDBus::getCustomDBus().implementPCIeDeviceInterface(
+                     entity.first);
+                 break;
++            case PLDM_ENTITY_SYS_BOARD:
++                CustomDBus::getCustomDBus().implementMotherboardInterface(
++                    entity.first);
++                break;
+             default:
+                 break;
+         }
+-- 
+2.25.1
+

@@ -1,0 +1,473 @@
+From eb43d6c8320604e18c7ea5595fb1ae20b6d85ce5 Mon Sep 17 00:00:00 2001
+From: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+Date: Wed, 1 May 2024 06:11:31 -0500
+Subject: [PATCH 11/40] Add support for the coreCount property in DBus
+
+This commit introduces support for counting the number of CPU cores
+during BMC power-on and populates this information to a DBus property
+named coreCount. Upon BMC power-on, the remote terminus detects the
+number of CPU cores and send this data and PLDM will updates the
+coreCount property accordingly.
+
+Tested:
+tested on simulator for hosting DBus property
+
+Change-Id: I37adbe399414fcff3f089fb819349ca4bb537edd
+Signed-off-by: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+---
+ host-bmc/host_pdr_handler.cpp                 |   7 +-
+ host-bmc/host_pdr_handler.hpp                 |  13 +++
+ libpldmresponder/oem_handler.hpp              |  26 +++++
+ oem/ibm/libpldmresponder/utils.cpp            |  75 +++++++++++++
+ oem/ibm/libpldmresponder/utils.hpp            |  30 ++++++
+ oem/ibm/test/entitymap_test.json              |  19 ++++
+ .../libpldmresponder_oem_platform_test.cpp    | 100 ++++++++++++++++++
+ pldmd/oem_ibm.hpp                             |  12 +++
+ 8 files changed, 280 insertions(+), 2 deletions(-)
+ create mode 100644 oem/ibm/test/entitymap_test.json
+
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index df0ac5c..7758858 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -95,7 +95,7 @@ HostPDRHandler::HostPDRHandler(
+     mctp_eid(mctp_eid), event(event), repo(repo),
+     stateSensorHandler(eventsJsonsDir), entityTree(entityTree),
+     bmcEntityTree(bmcEntityTree), instanceIdDb(instanceIdDb), handler(handler),
+-    entityMaps(parseEntityMap(ENTITY_MAP_JSON))
++    entityMaps(parseEntityMap(ENTITY_MAP_JSON)), oemUtilsHandler(nullptr)
+ {
+     mergedHostParents = false;
+     hostOffMatch = std::make_unique<sdbusplus::bus::match_t>(
+@@ -632,7 +632,10 @@ void HostPDRHandler::processHostPDRs(mctp_eid_t /*eid*/,
+     {
+         updateEntityAssociation(entityAssociations, entityTree, objPathMap,
+                                 entityMaps, oemPlatformHandler);
+-
++        if (oemUtilsHandler)
++        {
++            oemUtilsHandler->setCoreCount(entityAssociations, entityMaps);
++        }
+         /*received last record*/
+         this->parseStateSensorPDRs(stateSensorPDRs);
+         this->createDbusObjects(fruRecordSetPDRs);
+diff --git a/host-bmc/host_pdr_handler.hpp b/host-bmc/host_pdr_handler.hpp
+index 4fafe8d..eb299f3 100644
+--- a/host-bmc/host_pdr_handler.hpp
++++ b/host-bmc/host_pdr_handler.hpp
+@@ -87,6 +87,7 @@ class HostPDRHandler
+      *  @param[in] bmcEntityTree - pointer to BMC's entity association tree
+      *  @param[in] instanceIdDb - reference to an InstanceIdDb object
+      *  @param[in] handler - PLDM request handler
++     *  @param[in] oemUtilsHandler - pointer oem utils handler
+      */
+     explicit HostPDRHandler(
+         int mctp_fd, uint8_t mctp_eid, sdeventplus::Event& event,
+@@ -179,6 +180,15 @@ class HostPDRHandler
+         oemPlatformHandler = handler;
+     }
+ 
++    /* @brief Method to set the oem utils handler in host pdr handler class
++     *
++     * @param[in] handler - oem utils handler
++     */
++    inline void setOemUtilsHandler(pldm::responder::oem_utils::Handler* handler)
++    {
++        oemUtilsHandler = handler;
++    }
++
+     /** @brief map that captures various terminus information **/
+     TLPDRMap tlPDRInfo;
+ 
+@@ -339,6 +349,9 @@ class HostPDRHandler
+     /** @brief entityID and entity name is only loaded once
+      */
+     pldm::utils::EntityMaps entityMaps;
++
++    /** @OEM Utils handler */
++    pldm::responder::oem_utils::Handler* oemUtilsHandler;
+ };
+ 
+ } // namespace pldm
+diff --git a/libpldmresponder/oem_handler.hpp b/libpldmresponder/oem_handler.hpp
+index 68c844b..bd65dd2 100644
+--- a/libpldmresponder/oem_handler.hpp
++++ b/libpldmresponder/oem_handler.hpp
+@@ -150,6 +150,32 @@ class Handler : public CmdHandler
+ 
+ } // namespace oem_fru
+ 
++namespace oem_utils
++{
++using namespace pldm::utils;
++
++class Handler : public CmdHandler
++{
++  public:
++    Handler(const pldm::utils::DBusHandler* dBusIntf) : dBusIntf(dBusIntf) {}
++
++    /** @brief Collecting core count data and setting to Dbus properties
++     *
++     *  @param[in] associations - the data of entity association
++     *  @param[in] entityMaps - the mapping of entity to DBus string
++     *
++     */
++    virtual int setCoreCount(const EntityAssociations& associations,
++                             const EntityMaps entityMaps) = 0;
++
++    virtual ~Handler() = default;
++
++  protected:
++    const pldm::utils::DBusHandler* dBusIntf;
++};
++
++} // namespace oem_utils
++
+ } // namespace responder
+ 
+ } // namespace pldm
+diff --git a/oem/ibm/libpldmresponder/utils.cpp b/oem/ibm/libpldmresponder/utils.cpp
+index 88fe1b9..59d418c 100644
+--- a/oem/ibm/libpldmresponder/utils.cpp
++++ b/oem/ibm/libpldmresponder/utils.cpp
+@@ -3,6 +3,7 @@
+ #include "common/utils.hpp"
+ 
+ #include <libpldm/base.h>
++#include <libpldm/platform.h>
+ #include <sys/socket.h>
+ #include <sys/types.h>
+ #include <sys/un.h>
+@@ -197,6 +198,80 @@ std::vector<std::string> findPortObjects(const std::string& adapterObjPath)
+ 
+     return portObjects;
+ }
++
+ } // namespace utils
++
++namespace oem_ibm_utils
++{
++using namespace pldm::utils;
++
++int pldm::responder::oem_ibm_utils::Handler::setCoreCount(
++    const EntityAssociations& Associations, const EntityMaps entityMaps)
++{
++    int coreCountRef = 0;
++    // get the CPU pldm entities
++    for (const auto& entries : Associations)
++    {
++        auto parent = pldm_entity_extract(entries[0]);
++        // entries[0] would be the parent in the entity association map
++        if (parent.entity_type == PLDM_ENTITY_PROC)
++        {
++            int& coreCount = coreCountRef;
++            for (const auto& entry : entries)
++            {
++                auto child = pldm_entity_extract(entry);
++                if (child.entity_type == (PLDM_ENTITY_PROC | 0x8000))
++                {
++                    // got a core child
++                    ++coreCount;
++                }
++            }
++            try
++            {
++                auto grand_parent = pldm_entity_get_parent(entries[0]);
++                std::string grepWord = std::format(
++                    "{}{}/{}{}", entityMaps.at(grand_parent.entity_type),
++                    std::to_string(grand_parent.entity_instance_num),
++                    entityMaps.at(parent.entity_type),
++                    std::to_string(parent.entity_instance_num));
++                static constexpr auto searchpath = "/xyz/openbmc_project/";
++                std::vector<std::string> cpuInterface = {
++                    "xyz.openbmc_project.Inventory.Item.Cpu"};
++                pldm::utils::GetSubTreeResponse response = dBusIntf->getSubtree(
++                    searchpath, 0 /* depth */, cpuInterface);
++                for (const auto& [objectPath, serviceMap] : response)
++                {
++                    // find the object path with first occurance of coreX
++                    if (objectPath.contains(grepWord))
++                    {
++                        pldm::utils::DBusMapping dbusMapping{
++                            objectPath, cpuInterface[0], "CoreCount",
++                            "uint16_t"};
++                        pldm::utils::PropertyValue value =
++                            static_cast<uint16_t>(coreCount);
++                        try
++                        {
++                            dBusIntf->setDbusProperty(dbusMapping, value);
++                        }
++                        catch (const std::exception& e)
++                        {
++                            error(
++                                "Failed to set the core count property at interface '{INTERFACE}': {ERROR}",
++                                "INTERFACE", cpuInterface[0], "ERROR", e);
++                        }
++                    }
++                }
++            }
++            catch (const std::exception& e)
++            {
++                error("Failed to searching CoreCount property: {ERROR}",
++                      "ERROR", e);
++            }
++        }
++    }
++    return coreCountRef;
++}
++
++} // namespace oem_ibm_utils
+ } // namespace responder
+ } // namespace pldm
+diff --git a/oem/ibm/libpldmresponder/utils.hpp b/oem/ibm/libpldmresponder/utils.hpp
+index bfdd251..4e849f5 100644
+--- a/oem/ibm/libpldmresponder/utils.hpp
++++ b/oem/ibm/libpldmresponder/utils.hpp
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include "libpldmresponder/oem_handler.hpp"
++
+ #include <cstdint>
+ #include <string>
+ #include <vector>
+@@ -54,5 +56,33 @@ bool checkIfIBMFru(const std::string& objPath);
+ std::vector<std::string> findPortObjects(const std::string& adapterObjPath);
+ 
+ } // namespace utils
++
++namespace oem_ibm_utils
++{
++
++class Handler : public oem_utils::Handler
++{
++  public:
++    Handler(const pldm::utils::DBusHandler* dBusIntf) :
++        oem_utils::Handler(dBusIntf), dBusIntf(dBusIntf)
++    {}
++
++    /** @brief Collecting core count data and setting to Dbus properties
++     *
++     *  @param[in] associations - the data of entity association
++     *  @param[in] entityMaps - the mapping of entity to DBus string
++     *
++     */
++    virtual int
++        setCoreCount(const pldm::utils::EntityAssociations& associations,
++                     const pldm::utils::EntityMaps entityMaps);
++
++    virtual ~Handler() = default;
++
++  protected:
++    const pldm::utils::DBusHandler* dBusIntf;
++};
++
++} // namespace oem_ibm_utils
+ } // namespace responder
+ } // namespace pldm
+diff --git a/oem/ibm/test/entitymap_test.json b/oem/ibm/test/entitymap_test.json
+new file mode 100644
+index 0000000..7dc08f2
+--- /dev/null
++++ b/oem/ibm/test/entitymap_test.json
+@@ -0,0 +1,19 @@
++{
++    "Description": {
++        "_comment": [
++            "This file serves as a crucial tool for testing JSON parsing capabilities, facilitating the population of the Entitymap by harnessing its data."
++        ]
++    },
++    "EntityTypeToDbusStringMap": {
++        "45": "chassis",
++        "60": "io_board",
++        "63": "system_management_module",
++        "64": "motherboard",
++        "67": "dcm",
++        "80": "io_module",
++        "135": "cpu",
++        "190": "socket",
++        "32813": "system",
++        "32903": "core"
++    }
++}
+diff --git a/oem/ibm/test/libpldmresponder_oem_platform_test.cpp b/oem/ibm/test/libpldmresponder_oem_platform_test.cpp
+index ea9b97a..21b6914 100644
+--- a/oem/ibm/test/libpldmresponder_oem_platform_test.cpp
++++ b/oem/ibm/test/libpldmresponder_oem_platform_test.cpp
+@@ -1,23 +1,40 @@
+ #include "common/test/mocked_utils.hpp"
+ #include "common/utils.hpp"
++#include "host-bmc/utils.hpp"
+ #include "libpldmresponder/event_parser.hpp"
+ #include "libpldmresponder/pdr.hpp"
+ #include "libpldmresponder/pdr_utils.hpp"
+ #include "libpldmresponder/platform.hpp"
+ #include "oem/ibm/libpldmresponder/inband_code_update.hpp"
+ #include "oem/ibm/libpldmresponder/oem_ibm_handler.hpp"
++#include "oem/ibm/libpldmresponder/utils.hpp"
+ #include "test/test_instance_id.hpp"
+ 
+ #include <libpldm/entity.h>
+ #include <libpldm/oem/ibm/entity.h>
++#include <libpldm/pdr.h>
+ 
++#include <nlohmann/json.hpp>
++#include <phosphor-logging/lg2.hpp>
+ #include <sdeventplus/event.hpp>
+ 
++#include <filesystem>
++#include <fstream>
++
+ using namespace pldm::utils;
+ using namespace pldm::responder;
+ using namespace pldm::responder::pdr;
+ using namespace pldm::responder::pdr_utils;
+ using namespace pldm::responder::oem_ibm_platform;
++using ::testing::Return;
++
++class MockOemUtilsHandler : public oem_ibm_utils::Handler
++{
++  public:
++    MockOemUtilsHandler(const pldm::utils::DBusHandler* dBusIntf) :
++        oem_ibm_utils::Handler(dBusIntf)
++    {}
++};
+ 
+ class MockCodeUpdate : public CodeUpdate
+ {
+@@ -409,3 +426,86 @@ TEST(updateOemDbusPath, testgoodpath)
+     mockoemPlatformHandler->updateOemDbusPaths(dbuspath);
+     EXPECT_EQ(dbuspath, "/inventory/system/chassis/motherboard/dcm0");
+ }
++
++TEST(SetCoreCount, testgoodpath)
++{
++    pldm::utils::EntityMaps entityMaps = pldm::hostbmc::utils::parseEntityMap(
++        "../../oem/ibm/test/entitymap_test.json");
++    MockdBusHandler mockedDbusUtils;
++    pldm_entity entities[9]{};
++
++    entities[0].entity_type = 45;
++    entities[0].entity_container_id = 0;
++
++    entities[1].entity_type = 64;
++    entities[1].entity_container_id = 1;
++
++    entities[2].entity_type = 67;
++    entities[2].entity_container_id = 2;
++    entities[3].entity_type = 67;
++    entities[3].entity_container_id = 2;
++
++    entities[4].entity_type = 135;
++    entities[4].entity_container_id = 3;
++    entities[5].entity_type = 135;
++    entities[5].entity_container_id = 3;
++    entities[6].entity_type = 135;
++    entities[6].entity_container_id = 3;
++    entities[7].entity_type = 135;
++    entities[7].entity_container_id = 3;
++    entities[8].entity_type = 32903;
++    entities[8].entity_container_id = 3;
++
++    auto tree = pldm_entity_association_tree_init();
++
++    auto l1 = pldm_entity_association_tree_add_entity(
++        tree, &entities[0], 1, nullptr, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true,
++        true, 0xFFFF);
++
++    auto l2 = pldm_entity_association_tree_add_entity(
++        tree, &entities[1], 1, l1, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    auto l3a = pldm_entity_association_tree_add_entity(
++        tree, &entities[2], 0, l2, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++    auto l3b = pldm_entity_association_tree_add_entity(
++        tree, &entities[3], 1, l2, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    auto l4a = pldm_entity_association_tree_add_entity(
++        tree, &entities[4], 0, l3a, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++    auto l4b = pldm_entity_association_tree_add_entity(
++        tree, &entities[5], 1, l3a, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    auto l5a = pldm_entity_association_tree_add_entity(
++        tree, &entities[6], 0, l3b, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++    auto l5b = pldm_entity_association_tree_add_entity(
++        tree, &entities[7], 1, l3b, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    auto l5c = pldm_entity_association_tree_add_entity(
++        tree, &entities[8], 0, l5a, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    auto l5ca = pldm_entity_association_tree_add_entity(
++        tree, &entities[8], 0, l5b, PLDM_ENTITY_ASSOCIAION_PHYSICAL, true, true,
++        0xFFFF);
++
++    pldm::utils::EntityAssociations entityAssociations = {
++        {l1, l2},        {l2, l3a, l3b}, {l3a, l4a, l4b},
++        {l3b, l5a, l5b}, {l5a, l5c},     {l5b, l5ca}};
++
++    DBusMapping dbusMapping{"/foo/bar", "xyz.openbmc_project.Foo.Bar",
++                            "propertyName", "uint64_t"};
++    std::vector<std::string> cpuInterface = {"xyz.openbmc_project.Foo.Bar"};
++    auto oemMockedUtils =
++        std::make_unique<MockOemUtilsHandler>(&mockedDbusUtils);
++    int coreCount = oemMockedUtils->setCoreCount(entityAssociations,
++                                                 entityMaps);
++    EXPECT_EQ(coreCount, 2);
++    pldm_entity_association_tree_destroy(tree);
++}
+diff --git a/pldmd/oem_ibm.hpp b/pldmd/oem_ibm.hpp
+index 60e2a51..20c4bc1 100644
+--- a/pldmd/oem_ibm.hpp
++++ b/pldmd/oem_ibm.hpp
+@@ -4,6 +4,7 @@
+ #include "../oem/ibm/libpldmresponder/file_io.hpp"
+ #include "../oem/ibm/libpldmresponder/fru_oem_ibm.hpp"
+ #include "../oem/ibm/libpldmresponder/oem_ibm_handler.hpp"
++#include "../oem/ibm/libpldmresponder/utils.hpp"
+ #include "common/utils.hpp"
+ #include "dbus_impl_requester.hpp"
+ #include "host-bmc/dbus_to_event_handler.hpp"
+@@ -73,8 +74,10 @@ class OemIBM
+ 
+         createCodeUpdate();
+         createOemPlatformHandler();
++        createOemIbmUtilsHandler();
+         codeUpdate->setOemPlatformHandler(oemPlatformHandler.get());
+         hostPDRHandler->setOemPlatformHandler(oemPlatformHandler.get());
++        hostPDRHandler->setOemUtilsHandler(oemUtilsHandler.get());
+         platformHandler->setOemPlatformHandler(oemPlatformHandler.get());
+         baseHandler->setOemPlatformHandler(oemPlatformHandler.get());
+ 
+@@ -120,6 +123,12 @@ class OemIBM
+         oemFruHandler = std::make_unique<oem_ibm_fru::Handler>(repo);
+     }
+ 
++    /** @brief Method for creating oemIbmUtilsHandler */
++    void createOemIbmUtilsHandler()
++    {
++        oemUtilsHandler = std::make_unique<oem_ibm_utils::Handler>(dBusIntf);
++    }
++
+     /** @brief Method for creating oemIbmFruHandler */
+     void createOemIbmFruHandler()
+     {
+@@ -189,6 +198,9 @@ class OemIBM
+     pldm::responder::oem_ibm_fru::Handler* oemIbmFruHandler = nullptr;
+ 
+     std::unique_ptr<pldm::led::HostLampTest> hostLampTest;
++
++    /** @brief oem IBM Utils handler*/
++    std::unique_ptr<oem_utils::Handler> oemUtilsHandler;
+ };
+ 
+ } // namespace oem_ibm
+-- 
+2.25.1
+

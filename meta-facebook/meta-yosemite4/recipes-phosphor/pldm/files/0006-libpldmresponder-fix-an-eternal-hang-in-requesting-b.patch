@@ -1,0 +1,37 @@
+From ca8f6c7a2955cba5d4466aa9ac1cb073946118af Mon Sep 17 00:00:00 2001
+From: Manojkiran Eda <manojkiran.eda@gmail.com>
+Date: Tue, 9 Jul 2024 17:28:30 +0530
+Subject: [PATCH 06/40] libpldmresponder: fix an eternal hang in requesting bus
+ name
+
+If oem-ibm is disabled, but system-specific-bios-json option is enabled
+pldmd fails to start since its timing out waiting to request the bus
+name. This fix also breaks the dependency between the above two meson
+options.
+
+Tested:
+ - Was able to successfully start pldm service and see that the bus
+   name was claimed with oem-ibm disabled & system-specific-bios-json
+   enabled.
+
+Change-Id: Ie78521017ea20b7503b4425bf4c2f605c884ef1d
+Signed-off-by: Manojkiran Eda <manojkiran.eda@gmail.com>
+---
+ libpldmresponder/bios_config.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libpldmresponder/bios_config.cpp b/libpldmresponder/bios_config.cpp
+index 9883075..2b1a901 100644
+--- a/libpldmresponder/bios_config.cpp
++++ b/libpldmresponder/bios_config.cpp
+@@ -92,6 +92,7 @@ void BIOSConfig::initBIOSAttributes(const std::string& systemType,
+     {
+         error("System specific bios attribute directory {DIR} does not exit",
+               "DIR", dir);
++        requestPLDMServiceName();
+         return;
+     }
+     constructAttributes();
+-- 
+2.25.1
+

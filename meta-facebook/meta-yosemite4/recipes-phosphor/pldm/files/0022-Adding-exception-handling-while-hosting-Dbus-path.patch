@@ -1,0 +1,98 @@
+From 267c7efc462a8ebc0eb8eb7df4de48c8003603b3 Mon Sep 17 00:00:00 2001
+From: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+Date: Wed, 17 Jul 2024 13:43:57 -0500
+Subject: [PATCH 22/40] Adding exception handling while hosting Dbus path
+
+This commit add support to check if Dbus interface are hosted by other
+application or not. If Dbus interface hosted by other app then PLDM
+will skip the hosting and take existing path.
+
+Tested:
+Tested motherboard interface which is hosted by other app:
+` DICT_ENTRY "sas" {
+STRING "xyz.openbmc_project.Inventory.Manager";
+ARRAY "s" {
+STRING "xyz.openbmc_project.Inventory.Item";
+STRING "xyz.openbmc_project.Inventory.Item.Board.Motherboard";
+};
+};
+
+DICT_ENTRY "sas" {
+STRING "xyz.openbmc_project.PLDM";
+ARRAY "s" {
+STRING "org.freedesktop.DBus.Introspectable";
+STRING "org.freedesktop.DBus.Peer";
+STRING "org.freedesktop.DBus.Properties";
+};
+};
+};
+};
+`
+
+Change-Id: Ia0bacf38bf1dc796e649de39169cab5d3526e913
+Signed-off-by: Kamalkumar Patel <kamalkumar.patel@ibm.com>
+---
+ host-bmc/utils.cpp | 34 ++++++++++++++++++----------------
+ 1 file changed, 18 insertions(+), 16 deletions(-)
+
+diff --git a/host-bmc/utils.cpp b/host-bmc/utils.cpp
+index 78f3df2..648776d 100644
+--- a/host-bmc/utils.cpp
++++ b/host-bmc/utils.cpp
+@@ -101,26 +101,24 @@ void addObjectPathEntityAssociations(
+             {
+                 oemPlatformHandler->updateOemDbusPaths(entity_path);
+             }
+-            // If the entity obtained from the remote PLDM terminal is not in
+-            // the MAP, or there is no auxiliary name PDR, add it directly.
+-            // Otherwise, check whether the DBus service of entity_path exists,
+-            // and overwrite the entity if it does not exist.
+-            if (!objPathMap.contains(entity_path))
+-            {
+-                objPathMap[entity_path] = entity;
+-            }
+-            else
++            try
+             {
+-                try
+-                {
+-                    pldm::utils::DBusHandler().getService(entity_path.c_str(),
+-                                                          nullptr);
+-                }
+-                catch (const std::exception& e)
++                pldm::utils::DBusHandler().getService(entity_path.c_str(),
++                                                      nullptr);
++                // If the entity obtained from the remote PLDM terminal is not
++                // in the MAP, or there is no auxiliary name PDR, add it
++                // directly. Otherwise, check whether the DBus service of
++                // entity_path exists, and overwrite the entity if it does not
++                // exist.
++                if (objPathMap.contains(entity_path))
+                 {
+                     objPathMap[entity_path] = entity;
+                 }
+             }
++            catch (const std::exception&)
++            {
++                objPathMap[entity_path] = entity;
++            }
+ 
+             for (size_t i = 1; i < ev.size(); i++)
+             {
+@@ -144,8 +142,12 @@ void addObjectPathEntityAssociations(
+         try
+         {
+             pldm::utils::DBusHandler().getService(dbusPath.c_str(), nullptr);
++            if (objPathMap.contains(dbusPath))
++            {
++                objPathMap[dbusPath] = entity;
++            }
+         }
+-        catch (const std::exception& e)
++        catch (const std::exception&)
+         {
+             objPathMap[dbusPath] = entity;
+         }
+-- 
+2.25.1
+

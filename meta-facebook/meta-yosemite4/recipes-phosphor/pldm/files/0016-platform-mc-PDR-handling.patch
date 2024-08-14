@@ -1,7 +1,7 @@
-From 1f23c07cbac2b7f8087429b06e3556189b3ff112 Mon Sep 17 00:00:00 2001
+From de2a132aee45d077e83f59ede182a6fb73613aeb Mon Sep 17 00:00:00 2001
 From: Gilbert Chen <gilbert.chen@arm.com>
 Date: Tue, 24 May 2022 15:35:21 +0100
-Subject: [PATCH 01/10] platform-mc: PDR handling
+Subject: [PATCH 16/40] platform-mc: PDR handling
 
 Get PDRs of new terminus if it supports GetPDR PLDM command. It doesn't
 handle the event receiver related initialization steps, and either
@@ -16,21 +16,44 @@ Signed-off-by: Gilbert Chen <gilbert.chen@arm.com>
 Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
 Change-Id: I30a0cc594a3c08fc17f2dad861b5c5d41c80ebdd
 ---
+ common/types.hpp                           |   2 +
  platform-mc/platform_manager.cpp           | 241 ++++++++++++++++
  platform-mc/platform_manager.hpp           |  49 ++++
- platform-mc/terminus.cpp                   | 198 +++++++++++++
- platform-mc/terminus.hpp                   |  61 ++++
+ platform-mc/terminus.cpp                   | 240 ++++++++++++++++
+ platform-mc/terminus.hpp                   |  59 ++++
  platform-mc/test/meson.build               |   1 +
  platform-mc/test/platform_manager_test.cpp | 316 +++++++++++++++++++++
- platform-mc/test/terminus_test.cpp         |  59 ++++
- 7 files changed, 925 insertions(+)
+ platform-mc/test/terminus_test.cpp         |  58 ++++
+ 8 files changed, 966 insertions(+)
  create mode 100644 platform-mc/test/platform_manager_test.cpp
 
+diff --git a/common/types.hpp b/common/types.hpp
+index 8e0c4c2..1a91235 100644
+--- a/common/types.hpp
++++ b/common/types.hpp
+@@ -50,6 +50,8 @@ using MctpInfos = std::vector<MctpInfo>;
+  */
+ #define MCTP_START_VALID_EID 8
+ 
++#define PLDM_PLATFORM_GETPDR_MAX_RECORD_BYTES 1024
++
+ namespace dbus
+ {
+ 
 diff --git a/platform-mc/platform_manager.cpp b/platform-mc/platform_manager.cpp
-index e1d7f96..9ff3bdf 100644
+index e1d7f96..21e4bcf 100644
 --- a/platform-mc/platform_manager.cpp
 +++ b/platform-mc/platform_manager.cpp
-@@ -20,9 +20,250 @@ exec::task<int> PlatformManager::initTerminus()
+@@ -4,6 +4,8 @@
+ 
+ #include <phosphor-logging/lg2.hpp>
+ 
++#include <ranges>
++
+ PHOSPHOR_LOG2_USING;
+ 
+ namespace pldm
+@@ -20,9 +22,248 @@ exec::task<int> PlatformManager::initTerminus()
              continue;
          }
          terminus->initialized = true;
@@ -45,14 +68,8 @@ index e1d7f96..9ff3bdf 100644
 +                    "TID", tid, "ERROR", rc);
 +                continue; // Continue to next terminus
 +            }
-+            // Continue to next steps event the parsing PDR is failed at some
-+            // records
-+            if (!terminus->parsePDRs())
-+            {
-+                lg2::error(
-+                    "Failed to parse PDRs for terminus with TID: {TID}, error: {ERROR}",
-+                    "TID", tid, "ERROR", rc);
-+            }
++
++            terminus->parseTerminusPDRs();
 +        }
      }
      co_return PLDM_SUCCESS;
@@ -62,27 +79,31 @@ index e1d7f96..9ff3bdf 100644
 +{
 +    pldm_tid_t tid = terminus->getTid();
 +
-+    uint8_t repositoryState = 0;
-+    uint32_t recordCount = 0;
++    /* Setting default values when getPDRRepositoryInfo fails or does not
++     * support */
++    uint8_t repositoryState = PLDM_AVAILABLE;
++    uint32_t recordCount = std::numeric_limits<uint32_t>::max();
 +    uint32_t repositorySize = 0;
-+    uint32_t largestRecordSize = 0;
-+    auto rc = co_await getPDRRepositoryInfo(tid, repositoryState, recordCount,
-+                                            repositorySize, largestRecordSize);
-+    if (rc)
++    uint32_t largestRecordSize = std::numeric_limits<uint32_t>::max();
++    if (terminus->doesSupportCommand(PLDM_PLATFORM,
++                                     PLDM_GET_PDR_REPOSITORY_INFO))
 +    {
-+        lg2::error(
-+            "Failed to get PDR Repository Info for terminus with TID: {TID}, error: {ERROR}",
-+            "TID", tid, "ERROR", rc);
-+        repositoryState = PLDM_AVAILABLE;
-+        recordCount = std::numeric_limits<uint32_t>::max();
-+        largestRecordSize = std::numeric_limits<uint32_t>::max();
-+    }
-+    else
-+    {
-+        recordCount = std::min(recordCount + 1,
-+                               std::numeric_limits<uint32_t>::max());
-+        largestRecordSize = std::min(largestRecordSize + 1,
-+                                     std::numeric_limits<uint32_t>::max());
++        auto rc = co_await getPDRRepositoryInfo(tid, repositoryState,
++                                                recordCount, repositorySize,
++                                                largestRecordSize);
++        if (rc)
++        {
++            lg2::error(
++                "Failed to get PDR Repository Info for terminus with TID: {TID}, error: {ERROR}",
++                "TID", tid, "ERROR", rc);
++        }
++        else
++        {
++            recordCount = std::min(recordCount + 1,
++                                   std::numeric_limits<uint32_t>::max());
++            largestRecordSize = std::min(largestRecordSize + 1,
++                                         std::numeric_limits<uint32_t>::max());
++        }
 +    }
 +
 +    if (repositoryState != PLDM_AVAILABLE)
@@ -95,7 +116,7 @@ index e1d7f96..9ff3bdf 100644
 +    uint32_t nextDataTransferHndl = 0;
 +    uint8_t transferFlag = 0;
 +    uint16_t responseCnt = 0;
-+    constexpr uint16_t recvBufSize = 1024;
++    constexpr uint16_t recvBufSize = PLDM_PLATFORM_GETPDR_MAX_RECORD_BYTES;
 +    std::vector<uint8_t> recvBuf(recvBufSize);
 +    uint8_t transferCrc = 0;
 +
@@ -104,10 +125,10 @@ index e1d7f96..9ff3bdf 100644
 +
 +    do
 +    {
-+        rc = co_await getPDR(tid, recordHndl, 0, PLDM_GET_FIRSTPART,
-+                             recvBufSize, 0, nextRecordHndl,
-+                             nextDataTransferHndl, transferFlag, responseCnt,
-+                             recvBuf, transferCrc);
++        auto rc = co_await getPDR(tid, recordHndl, 0, PLDM_GET_FIRSTPART,
++                                  recvBufSize, 0, nextRecordHndl,
++                                  nextDataTransferHndl, transferFlag,
++                                  responseCnt, recvBuf, transferCrc);
 +
 +        if (rc)
 +        {
@@ -118,7 +139,7 @@ index e1d7f96..9ff3bdf 100644
 +            co_return rc;
 +        }
 +
-+        if (transferFlag == PLDM_START_AND_END)
++        if (transferFlag == PLDM_PLATFORM_TRANSFER_START_AND_END)
 +        {
 +            // single-part
 +            terminus->pdrs.emplace_back(std::vector<uint8_t>(
@@ -153,7 +174,7 @@ index e1d7f96..9ff3bdf 100644
 +                                   recvBuf.begin() + responseCnt);
 +                receivedRecordSize += responseCnt;
 +
-+                if (transferFlag == PLDM_END)
++                if (transferFlag == PLDM_PLATFORM_TRANSFER_END)
 +                {
 +                    terminus->pdrs.emplace_back(std::move(receivedPdr));
 +                    recordHndl = nextRecordHndl;
@@ -252,14 +273,14 @@ index e1d7f96..9ff3bdf 100644
 +    }
 +
 +    uint8_t completionCode = 0;
-+    uint8_t updateTime[PLDM_TIMESTAMP104_SIZE] = {0};
-+    uint8_t oemUpdateTime[PLDM_TIMESTAMP104_SIZE] = {0};
++    std::array<uint8_t, PLDM_TIMESTAMP104_SIZE> updateTime = {};
++    std::array<uint8_t, PLDM_TIMESTAMP104_SIZE> oemUpdateTime = {};
 +    uint8_t dataTransferHandleTimeout = 0;
 +
 +    rc = decode_get_pdr_repository_info_resp(
-+        responseMsg, responseLen, &completionCode, &repositoryState, updateTime,
-+        oemUpdateTime, &recordCount, &repositorySize, &largestRecordSize,
-+        &dataTransferHandleTimeout);
++        responseMsg, responseLen, &completionCode, &repositoryState,
++        updateTime.data(), oemUpdateTime.data(), &recordCount, &repositorySize,
++        &largestRecordSize, &dataTransferHandleTimeout);
 +    if (rc)
 +    {
 +        lg2::error(
@@ -349,16 +370,24 @@ index a7fd412..8187ca1 100644
      TerminusManager& terminusManager;
  
 diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
-index 947571b..333813e 100644
+index 947571b..194583f 100644
 --- a/platform-mc/terminus.cpp
 +++ b/platform-mc/terminus.cpp
-@@ -49,5 +49,203 @@ bool Terminus::doesSupportCommand(uint8_t type, uint8_t command)
+@@ -4,6 +4,8 @@
+ 
+ #include "terminus_manager.hpp"
+ 
++#include <ranges>
++
+ namespace pldm
+ {
+ namespace platform_mc
+@@ -49,5 +51,243 @@ bool Terminus::doesSupportCommand(uint8_t type, uint8_t command)
      return false;
  }
  
-+bool Terminus::parsePDRs()
++void Terminus::parseTerminusPDRs()
 +{
-+    bool rc = true;
 +    std::vector<std::shared_ptr<pldm_numeric_sensor_value_pdr>>
 +        numericSensorPdrs{};
 +    std::vector<std::shared_ptr<pldm_compact_numeric_sensor_pdr>>
@@ -367,57 +396,88 @@ index 947571b..333813e 100644
 +    for (auto& pdr : pdrs)
 +    {
 +        auto pdrHdr = reinterpret_cast<pldm_pdr_hdr*>(pdr.data());
-+        if (pdrHdr->type == PLDM_SENSOR_AUXILIARY_NAMES_PDR)
++        switch (pdrHdr->type)
 +        {
-+            auto sensorAuxiliaryNames = parseSensorAuxiliaryNamesPDR(pdr);
-+            sensorAuxiliaryNamesTbl.emplace_back(
-+                std::move(sensorAuxiliaryNames));
-+        }
-+        else if (pdrHdr->type == PLDM_NUMERIC_SENSOR_PDR)
-+        {
-+            auto parsedPdr = parseNumericSensorPDR(pdr);
-+            if (parsedPdr != nullptr)
++            case PLDM_SENSOR_AUXILIARY_NAMES_PDR:
 +            {
-+                numericSensorPdrs.emplace_back(std::move(parsedPdr));
-+            }
-+        }
-+        else if (pdrHdr->type == PLDM_COMPACT_NUMERIC_SENSOR_PDR)
-+        {
-+            auto parsedPdr = parseCompactNumericSensorPDR(pdr);
-+            if (parsedPdr != nullptr)
-+            {
-+                compactNumericSensorPdrs.emplace_back(std::move(parsedPdr));
-+                auto sensorAuxiliaryNames = parseCompactNumericSensorNames(pdr);
-+                if (sensorAuxiliaryNames != nullptr)
++                auto sensorAuxNames = parseSensorAuxiliaryNamesPDR(pdr);
++                if (!sensorAuxNames)
 +                {
-+                    sensorAuxiliaryNamesTbl.emplace_back(
-+                        std::move(sensorAuxiliaryNames));
++                    lg2::error(
++                        "Failed to parse PDR with type {TYPE} handle {HANDLE}",
++                        "TYPE", pdrHdr->type, "HANDLE",
++                        static_cast<uint32_t>(pdrHdr->record_handle));
++                    continue;
 +                }
++                sensorAuxiliaryNamesTbl.emplace_back(std::move(sensorAuxNames));
++                break;
 +            }
-+        }
-+        else
-+        {
-+            lg2::error("parsePDRs() Unsupported PDR with type {TYPE}", "TYPE",
-+                       pdrHdr->type);
-+            rc = false;
++            case PLDM_NUMERIC_SENSOR_PDR:
++            {
++                auto parsedPdr = parseNumericSensorPDR(pdr);
++                if (!parsedPdr)
++                {
++                    lg2::error(
++                        "Failed to parse PDR with type {TYPE} handle {HANDLE}",
++                        "TYPE", pdrHdr->type, "HANDLE",
++                        static_cast<uint32_t>(pdrHdr->record_handle));
++                    continue;
++                }
++                numericSensorPdrs.emplace_back(std::move(parsedPdr));
++                break;
++            }
++            case PLDM_COMPACT_NUMERIC_SENSOR_PDR:
++            {
++                auto parsedPdr = parseCompactNumericSensorPDR(pdr);
++                if (!parsedPdr)
++                {
++                    lg2::error(
++                        "Failed to parse PDR with type {TYPE} handle {HANDLE}",
++                        "TYPE", pdrHdr->type, "HANDLE",
++                        static_cast<uint32_t>(pdrHdr->record_handle));
++                    continue;
++                }
++                auto sensorAuxNames = parseCompactNumericSensorNames(pdr);
++                if (!sensorAuxNames)
++                {
++                    lg2::error(
++                        "Failed to parse sensor name PDR with type {TYPE} handle {HANDLE}",
++                        "TYPE", pdrHdr->type, "HANDLE",
++                        static_cast<uint32_t>(pdrHdr->record_handle));
++                    continue;
++                }
++                compactNumericSensorPdrs.emplace_back(std::move(parsedPdr));
++                sensorAuxiliaryNamesTbl.emplace_back(std::move(sensorAuxNames));
++                break;
++            }
++            default:
++            {
++                lg2::error("Unsupported PDR with type {TYPE} handle {HANDLE}",
++                           "TYPE", pdrHdr->type, "HANDLE",
++                           static_cast<uint32_t>(pdrHdr->record_handle));
++                break;
++            }
 +        }
 +    }
-+    return rc;
 +}
 +
 +std::shared_ptr<SensorAuxiliaryNames>
 +    Terminus::getSensorAuxiliaryNames(SensorId id)
 +{
-+    for (auto sensorAuxiliaryNames : sensorAuxiliaryNamesTbl)
-+    {
++    auto it = std::find_if(
++        sensorAuxiliaryNamesTbl.begin(), sensorAuxiliaryNamesTbl.end(),
++        [id](
++            const std::shared_ptr<SensorAuxiliaryNames>& sensorAuxiliaryNames) {
 +        const auto& [sensorId, sensorCnt, sensorNames] = *sensorAuxiliaryNames;
-+        if (sensorId == id)
-+        {
-+            return sensorAuxiliaryNames;
-+        }
++        return sensorId == id;
++    });
++
++    if (it != sensorAuxiliaryNamesTbl.end())
++    {
++        return *it;
 +    }
 +    return nullptr;
-+}
++};
 +
 +std::shared_ptr<SensorAuxiliaryNames>
 +    Terminus::parseSensorAuxiliaryNamesPDR(const std::vector<uint8_t>& pdrData)
@@ -429,15 +489,17 @@ index 947571b..333813e 100644
 +    std::vector<std::vector<std::pair<NameLanguageTag, SensorName>>>
 +        sensorAuxNames{};
 +    char16_t alignedBuffer[PLDM_STR_UTF_16_MAX_LEN];
-+    for (int i = 0; i < pdr->sensor_count; i++)
++    for ([[maybe_unused]] const auto& sensor :
++         std::views::iota(0, static_cast<int>(pdr->sensor_count)))
 +    {
 +        const uint8_t nameStringCount = static_cast<uint8_t>(*ptr);
 +        ptr += sizeof(uint8_t);
 +        std::vector<std::pair<NameLanguageTag, SensorName>> nameStrings{};
-+        for (int j = 0; j < nameStringCount; j++)
++        for ([[maybe_unused]] const auto& count :
++             std::views::iota(0, static_cast<int>(nameStringCount)))
 +        {
-+            std::string nameLanguageTag(reinterpret_cast<const char*>(ptr), 0,
-+                                        PLDM_STR_UTF_8_MAX_LEN);
++            std::string_view nameLanguageTag(
++                reinterpret_cast<const char*>(ptr));
 +            ptr += nameLanguageTag.size() + sizeof(nullTerminator);
 +
 +            int u16NameStringLen = 0;
@@ -445,11 +507,17 @@ index 947571b..333813e 100644
 +            {
 +                u16NameStringLen++;
 +            }
-+            memset(alignedBuffer, 0,
-+                   PLDM_STR_UTF_16_MAX_LEN * sizeof(uint16_t));
++            /* include terminator */
++            u16NameStringLen++;
++
++            std::fill(std::begin(alignedBuffer), std::end(alignedBuffer), 0);
++            if (u16NameStringLen > PLDM_STR_UTF_16_MAX_LEN)
++            {
++                lg2::error("Sensor name to long.");
++                return nullptr;
++            }
 +            memcpy(alignedBuffer, ptr, u16NameStringLen * sizeof(uint16_t));
-+            std::u16string u16NameString(alignedBuffer, 0,
-+                                         PLDM_STR_UTF_16_MAX_LEN);
++            std::u16string u16NameString(alignedBuffer, u16NameStringLen);
 +            ptr += (u16NameString.size() + sizeof(nullTerminator)) *
 +                   sizeof(uint16_t);
 +            std::transform(u16NameString.cbegin(), u16NameString.cend(),
@@ -459,13 +527,19 @@ index 947571b..333813e 100644
 +                std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,
 +                                     char16_t>{}
 +                    .to_bytes(u16NameString);
++            std::replace(nameString.begin(), nameString.end(), ' ', '_');
++            auto nullTerminatorPos = nameString.find('\0');
++            if (nullTerminatorPos != std::string::npos)
++            {
++                nameString.erase(nullTerminatorPos);
++            }
 +            nameStrings.emplace_back(
 +                std::make_pair(nameLanguageTag, nameString));
 +        }
-+        sensorAuxNames.emplace_back(nameStrings);
++        sensorAuxNames.emplace_back(std::move(nameStrings));
 +    }
 +    return std::make_shared<SensorAuxiliaryNames>(
-+        pdr->sensor_id, pdr->sensor_count, sensorAuxNames);
++        pdr->sensor_id, pdr->sensor_count, std::move(sensorAuxNames));
 +}
 +
 +std::shared_ptr<pldm_numeric_sensor_value_pdr>
@@ -484,7 +558,6 @@ index 947571b..333813e 100644
 +std::shared_ptr<SensorAuxiliaryNames>
 +    Terminus::parseCompactNumericSensorNames(const std::vector<uint8_t>& sPdr)
 +{
-+    std::string nameString;
 +    std::vector<std::vector<std::pair<NameLanguageTag, SensorName>>>
 +        sensorAuxNames{};
 +    std::vector<std::pair<NameLanguageTag, SensorName>> nameStrings{};
@@ -497,41 +570,38 @@ index 947571b..333813e 100644
 +        return nullptr;
 +    }
 +
-+    if (pdr->sensor_name_length == 0)
++    if (!pdr->sensor_name_length ||
++        (sPdr.size() < (sizeof(pldm_compact_numeric_sensor_pdr) -
++                        sizeof(uint8_t) + pdr->sensor_name_length)))
 +    {
 +        return nullptr;
 +    }
 +
-+    if (sPdr.size() < (sizeof(pldm_compact_numeric_sensor_pdr) -
-+                       sizeof(uint8_t) + pdr->sensor_name_length))
++    std::string nameString(reinterpret_cast<const char*>(pdr->sensor_name),
++                           pdr->sensor_name_length);
++    std::replace(nameString.begin(), nameString.end(), ' ', '_');
++    auto nullTerminatorPos = nameString.find('\0');
++    if (nullTerminatorPos != std::string::npos)
 +    {
-+        return nullptr;
++        nameString.erase(nullTerminatorPos);
 +    }
-+
-+    std::string sTemp(reinterpret_cast<const char*>(pdr->sensor_name),
-+                      pdr->sensor_name_length);
-+    size_t pos = 0;
-+    while ((pos = sTemp.find(" ")) != std::string::npos)
-+    {
-+        sTemp.replace(pos, 1, "_");
-+    }
-+    nameString = sTemp;
-+
-+    nameString.erase(nameString.find('\0'));
 +    nameStrings.emplace_back(std::make_pair("en", nameString));
-+    sensorAuxNames.emplace_back(nameStrings);
++    sensorAuxNames.emplace_back(std::move(nameStrings));
 +
 +    return std::make_shared<SensorAuxiliaryNames>(pdr->sensor_id, 1,
-+                                                  sensorAuxNames);
++                                                  std::move(sensorAuxNames));
 +}
 +
 +std::shared_ptr<pldm_compact_numeric_sensor_pdr>
 +    Terminus::parseCompactNumericSensorPDR(const std::vector<uint8_t>& sPdr)
 +{
-+    std::string nameString;
-+    std::vector<std::pair<NameLanguageTag, SensorName>> nameStrings{};
 +    auto pdr =
 +        reinterpret_cast<const pldm_compact_numeric_sensor_pdr*>(sPdr.data());
++    if (sPdr.size() < sizeof(pldm_compact_numeric_sensor_pdr))
++    {
++        // Handle error: input data too small to contain valid pdr
++        return nullptr;
++    }
 +    auto parsedPdr = std::make_shared<pldm_compact_numeric_sensor_pdr>();
 +
 +    parsedPdr->hdr = pdr->hdr;
@@ -557,7 +627,7 @@ index 947571b..333813e 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/terminus.hpp b/platform-mc/terminus.hpp
-index 6957fb3..8fa4ea0 100644
+index 6957fb3..3a1a302 100644
 --- a/platform-mc/terminus.hpp
 +++ b/platform-mc/terminus.hpp
 @@ -11,6 +11,9 @@
@@ -585,21 +655,19 @@ index 6957fb3..8fa4ea0 100644
  /**
   * @brief Terminus
   *
-@@ -68,6 +79,13 @@ class Terminus
+@@ -68,6 +79,11 @@ class Terminus
  
          return true;
      }
 +
 +    /** @brief Parse the PDRs stored in the member variable, pdrs.
-+     *
-+     *  @return False if any unsupported PDR is detected.
 +     */
-+    bool parsePDRs();
++    void parseTerminusPDRs();
 +
      /** @brief The getter to return terminus's TID */
      pldm_tid_t getTid()
      {
-@@ -80,7 +98,46 @@ class Terminus
+@@ -80,7 +96,46 @@ class Terminus
      /** @brief A flag to indicate if terminus has been initialized */
      bool initialized = false;
  
@@ -646,7 +714,7 @@ index 6957fb3..8fa4ea0 100644
      /* @brief The terminus's TID */
      pldm_tid_t tid;
  
-@@ -96,6 +153,10 @@ class Terminus
+@@ -96,6 +151,10 @@ class Terminus
       *         PLDM_MAX_TYPES * (PLDM_MAX_CMDS_PER_TYPE / 8).
       */
      std::vector<uint8_t> supportedCmds;
@@ -992,7 +1060,7 @@ index 0000000..2df2b48
 +    EXPECT_EQ(0, terminus->pdrs.size());
 +}
 diff --git a/platform-mc/test/terminus_test.cpp b/platform-mc/test/terminus_test.cpp
-index 32fd7b7..2f88829 100644
+index 32fd7b7..8919b19 100644
 --- a/platform-mc/test/terminus_test.cpp
 +++ b/platform-mc/test/terminus_test.cpp
 @@ -1,3 +1,5 @@
@@ -1001,7 +1069,7 @@ index 32fd7b7..2f88829 100644
  #include "platform-mc/terminus.hpp"
  
  #include <gtest/gtest.h>
-@@ -21,3 +23,60 @@ TEST(TerminusTest, getTidTest)
+@@ -21,3 +23,59 @@ TEST(TerminusTest, getTidTest)
  
      EXPECT_EQ(tid, t1.getTid());
  }
@@ -1045,8 +1113,7 @@ index 32fd7b7..2f88829 100644
 +    };
 +
 +    t1.pdrs.emplace_back(pdr1);
-+    auto rc = t1.parsePDRs();
-+    EXPECT_EQ(true, rc);
++    t1.parseTerminusPDRs();
 +
 +    auto sensorAuxNames = t1.getSensorAuxiliaryNames(0);
 +    EXPECT_EQ(nullptr, sensorAuxNames);

@@ -1,0 +1,29 @@
+From c6240ac43585551f67661088fd2a33e9226fd52d Mon Sep 17 00:00:00 2001
+From: Manojkiran Eda <manojkiran.eda@gmail.com>
+Date: Wed, 3 Jul 2024 12:20:47 +0530
+Subject: [PATCH 08/40] skip asking for PDR's from remote endpoint
+
+The PDR exchange is always triggered from the remote end point. Hence
+BMC should never ask for GetPDR by itself.
+
+Change-Id: Ibc90cdd5118ad1bc7665bc681b0aa89994a5e400
+Signed-off-by: Manojkiran Eda <manojkiran.eda@gmail.com>
+---
+ host-bmc/host_pdr_handler.cpp | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/host-bmc/host_pdr_handler.cpp b/host-bmc/host_pdr_handler.cpp
+index 950cafe..c51a08b 100644
+--- a/host-bmc/host_pdr_handler.cpp
++++ b/host-bmc/host_pdr_handler.cpp
+@@ -726,7 +726,6 @@ void HostPDRHandler::setHostFirmwareCondition()
+         info("Getting the response code '{RC}'", "RC", lg2::hex,
+              response->payload[0]);
+         this->responseReceived = true;
+-        getHostPDR();
+     };
+     rc = handler->registerRequest(mctp_eid, instanceId, PLDM_BASE,
+                                   PLDM_GET_PLDM_VERSION, std::move(requestMsg),
+-- 
+2.25.1
+

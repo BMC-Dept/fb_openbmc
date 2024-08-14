@@ -1,0 +1,152 @@
+From 1fa12e1e99e93d5cc8ebd971536f4d51a7c48228 Mon Sep 17 00:00:00 2001
+From: Chau Ly <chaul@amperecomputing.com>
+Date: Tue, 2 Apr 2024 09:32:01 +0000
+Subject: [PATCH 38/40] platform-mc: Call MCTP `.Recover` in the request
+ timeout
+
+In the current implementation, `pldmd` will register the request
+messages to sendRecvPldmMsg. This API will returns the return error code
+from sendRecvPldmMsgOverMctp directly to the caller but not handle the
+timeout error code.
+The MCTP D-Bus interface `au.com.codeconstruct.MCTP.Endpoint1` supports
+`.Recover` method to recover the communication to one terminus. The
+`pldmd` should call this method in time out.
+[1] https://github.com/CodeConstruct/mctp/blob/main/docs/endpoint-recovery.md#recover-method-design-considerations
+
+Supports handling the timeout error code by calling to the `.Recover`
+method under `au.com.codeconstruct.MCTP.Endpoint1` brought by mctpd.
+This action will check if the endpoint is still available. pldm will
+handle accordingly by continuing to communicate or removing the endpoint
+based on mctpd upcoming behaviors.
+
+Signed-off-by: Chau Ly <chaul@amperecomputing.com>
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: I71cc33a3630b5adbd65c485fe98148669ce635f6
+---
+ common/utils.cpp                 | 26 ++++++++++++++++++++++++++
+ common/utils.hpp                 |  6 ++++++
+ platform-mc/terminus_manager.cpp | 21 +++++++++++++++++++++
+ platform-mc/terminus_manager.hpp |  7 +++++++
+ 4 files changed, 60 insertions(+)
+
+diff --git a/common/utils.cpp b/common/utils.cpp
+index 98b82ed..7cdb5b2 100644
+--- a/common/utils.cpp
++++ b/common/utils.cpp
+@@ -27,6 +27,11 @@ namespace pldm
+ namespace utils
+ {
+ 
++using ObjectMapper = sdbusplus::client::xyz::openbmc_project::ObjectMapper<>;
++
++constexpr const char* MCTP_INTERFACE_CC = "au.com.codeconstruct.MCTP.Endpoint";
++constexpr const char* MCTP_ENDPOINT_RECOVER_METHOD = "Recover";
++
+ std::vector<std::vector<uint8_t>> findStateEffecterPDR(uint8_t /*tid*/,
+                                                        uint16_t entityID,
+                                                        uint16_t stateSetId,
+@@ -564,6 +569,27 @@ int emitStateSensorEventSignal(uint8_t tid, uint16_t sensorId,
+     return PLDM_SUCCESS;
+ }
+ 
++void recoverMctpEndpoint(const std::string& endpointObjPath)
++{
++    auto& bus = DBusHandler::getBus();
++    try
++    {
++        std::string service = DBusHandler().getService(endpointObjPath.c_str(),
++                                                       MCTP_INTERFACE_CC);
++
++        auto method = bus.new_method_call(
++            service.c_str(), endpointObjPath.c_str(), MCTP_INTERFACE_CC,
++            MCTP_ENDPOINT_RECOVER_METHOD);
++        bus.call_noreply(method);
++    }
++    catch (const std::exception& e)
++    {
++        error(
++            "failed to make a D-Bus call to recover MCTP Endpoint, ERROR={ERR_EXCEP}",
++            "ERR_EXCEP", e.what());
++    }
++}
++
+ uint16_t findStateSensorId(const pldm_pdr* pdrRepo, uint8_t tid,
+                            uint16_t entityType, uint16_t entityInstance,
+                            uint16_t containerId, uint16_t stateSetId)
+diff --git a/common/utils.hpp b/common/utils.hpp
+index 8c18670..6daa7b7 100644
+--- a/common/utils.hpp
++++ b/common/utils.hpp
+@@ -492,6 +492,12 @@ int emitStateSensorEventSignal(uint8_t tid, uint16_t sensorId,
+                                uint8_t sensorOffset, uint8_t eventState,
+                                uint8_t previousEventState);
+ 
++/**
++ *  @brief call Recover() method to recover an MCTP Endpoint
++ *  @param[in] MCTP Endpoint's object path
++ */
++void recoverMctpEndpoint(const std::string& endpointObjPath);
++
+ /** @brief Print the buffer
+  *
+  *  @param[in]  isTx - True if the buffer is an outgoing PLDM message, false if
+diff --git a/platform-mc/terminus_manager.cpp b/platform-mc/terminus_manager.cpp
+index 2bbc08b..21d56ba 100644
+--- a/platform-mc/terminus_manager.cpp
++++ b/platform-mc/terminus_manager.cpp
+@@ -148,6 +148,15 @@ void TerminusManager::updateMctpEndpointAvailability(const MctpInfo& mctpInfo,
+     }
+ }
+ 
++std::string TerminusManager::constructEndpointObjPath(const MctpInfo& mctpInfo)
++{
++    std::string path;
++    std::string eidStr = std::to_string(std::get<0>(mctpInfo));
++    std::string networkIDStr = std::to_string(std::get<3>(mctpInfo));
++    path = std::string(MCTPPath) + "/" + networkIDStr + "/" + eidStr;
++    return path;
++}
++
+ void TerminusManager::discoverMctpTerminus(const MctpInfos& mctpInfos)
+ {
+     queuedMctpInfos.emplace(mctpInfos);
+@@ -663,6 +672,18 @@ exec::task<int> TerminusManager::sendRecvPldmMsg(pldm_tid_t tid,
+     auto rc = co_await sendRecvPldmMsgOverMctp(eid, request, responseMsg,
+                                                responseLen);
+ 
++    if (rc == PLDM_ERROR_NOT_READY)
++    {
++        // Call Recover() to check enpoint's availability
++        // Set endpoint's availability in mctpInfoTable to false in advance
++        // to prevent message forwarding through this endpoint while mctpd
++        // is checking the endpoint.
++        std::string endpointObjPath =
++            constructEndpointObjPath(mctpInfo.value());
++        pldm::utils::recoverMctpEndpoint(endpointObjPath);
++        updateMctpEndpointAvailability(mctpInfo.value(), false);
++    }
++
+     co_return rc;
+ }
+ 
+diff --git a/platform-mc/terminus_manager.hpp b/platform-mc/terminus_manager.hpp
+index 741c75f..512d9a1 100644
+--- a/platform-mc/terminus_manager.hpp
++++ b/platform-mc/terminus_manager.hpp
+@@ -166,6 +166,13 @@ class TerminusManager
+     void updateMctpEndpointAvailability(const MctpInfo& mctpInfo,
+                                         Availability availability);
+ 
++    /** @brief Construct MCTP Endpoint object path base on the MCTP endpoint
++     *  info
++     *
++     *  @param[in] mctpInfo - information of the target endpoint
++     */
++    std::string constructEndpointObjPath(const MctpInfo& mctpInfo);
++
+   private:
+     /** @brief Find the terminus object pointer in termini list.
+      *
+-- 
+2.25.1
+

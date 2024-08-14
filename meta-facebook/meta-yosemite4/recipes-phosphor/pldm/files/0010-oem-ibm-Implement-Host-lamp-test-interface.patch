@@ -1,0 +1,461 @@
+From b49b7d80f37cbb600c9237a9343169250beecb0b Mon Sep 17 00:00:00 2001
+From: George Liu <liuxiwei@inspur.com>
+Date: Mon, 8 Feb 2021 14:10:17 +0800
+Subject: [PATCH 10/40] oem-ibm: Implement Host lamp test interface
+
+IBM has a feature called LampTest and what it does is this:
+  - BMC would set the state of LEDs to [ON] on all the BMC accessible
+    LEDs.
+  - For LEDs that are not accessible by BMC, a message is sent to the
+    Host, so that the Host can exercise all the LEDs on the connected
+    drawers and anything else that the BMC does not have access to.
+
+This commit adds support to send message to Host when BMC has to tell
+the Host to exercise LEDs accessible by host.
+
+When Host sees the effector is set, it goes ahead and turns [ON] all
+the LEDs for a specified time and automatically restores the states
+at timer expiration. BMC does not have to tell the Host to stop the
+test and it is part of Host's lamp test requirement.
+
+TESTED: By setting the asserted property of the LED groups object
+
+busctl set-property xyz.openbmc_project.LED.GroupManager
+/xyz/openbmc_project/led/groups/lamp_test
+xyz.openbmc_project.Led.Group Asserted b true
+
+And verifying that the setEffecterStates call was made to the
+remote state effecter to turn on all LEDs
+
+Signed-off-by: George Liu <liuxiwei@inspur.com>
+Change-Id: I990dce28d3017f20c73ff9029fced0e7ac84868f
+---
+ libpldmresponder/meson.build        |   1 +
+ libpldmresponder/test/meson.build   |   3 +-
+ oem/ibm/host-bmc/host_lamp_test.cpp | 164 ++++++++++++++++++++++++++++
+ oem/ibm/host-bmc/host_lamp_test.hpp | 112 +++++++++++++++++++
+ oem/ibm/test/host_bmc_lamp_test.cpp |  51 +++++++++
+ pldmd/oem_ibm.hpp                   |  13 +++
+ 6 files changed, 343 insertions(+), 1 deletion(-)
+ create mode 100644 oem/ibm/host-bmc/host_lamp_test.cpp
+ create mode 100644 oem/ibm/host-bmc/host_lamp_test.hpp
+ create mode 100644 oem/ibm/test/host_bmc_lamp_test.cpp
+
+diff --git a/libpldmresponder/meson.build b/libpldmresponder/meson.build
+index 15166e2..4f62f4d 100644
+--- a/libpldmresponder/meson.build
++++ b/libpldmresponder/meson.build
+@@ -59,6 +59,7 @@ if get_option('oem-ibm').allowed()
+     '../oem/ibm/libpldmresponder/file_io_type_progress_src.cpp',
+     '../oem/ibm/libpldmresponder/file_io_type_vpd.cpp',
+     '../oem/ibm/libpldmresponder/file_io_type_pcie.cpp',
++    '../oem/ibm/host-bmc/host_lamp_test.cpp',
+   ]
+ endif
+ 
+diff --git a/libpldmresponder/test/meson.build b/libpldmresponder/test/meson.build
+index d7d3deb..9a9fbc9 100644
+--- a/libpldmresponder/test/meson.build
++++ b/libpldmresponder/test/meson.build
+@@ -16,7 +16,8 @@ tests = [
+ if get_option('oem-ibm').allowed()
+   tests += [
+     '../../oem/ibm/test/libpldmresponder_fileio_test',
+-    '../../oem/ibm/test/libpldmresponder_oem_platform_test'
++    '../../oem/ibm/test/libpldmresponder_oem_platform_test',
++    '../../oem/ibm/test/host_bmc_lamp_test',
+   ]
+ endif
+ 
+diff --git a/oem/ibm/host-bmc/host_lamp_test.cpp b/oem/ibm/host-bmc/host_lamp_test.cpp
+new file mode 100644
+index 0000000..57f9610
+--- /dev/null
++++ b/oem/ibm/host-bmc/host_lamp_test.cpp
+@@ -0,0 +1,164 @@
++
++#include "host_lamp_test.hpp"
++
++#include "common/types.hpp"
++#include "common/utils.hpp"
++
++#include <libpldm/entity.h>
++#include <libpldm/platform.h>
++#include <libpldm/state_set.h>
++
++PHOSPHOR_LOG2_USING;
++
++namespace pldm
++{
++namespace led
++{
++
++bool HostLampTest::asserted() const
++{
++    return sdbusplus::xyz::openbmc_project::Led::server::Group::asserted();
++}
++
++bool HostLampTest::asserted(bool value)
++{
++    // When setting the asserted property to true, need to notify the PHYP to
++    // start lamp test.
++    // When setting the asserted property to true again, need to notify the PHYP
++    // and PHYP will restart the lamp test.
++    // When setting the asserted property to false, just update the asserted
++    // property, do not need to notify the PHYP to stop lamp test, PHYP will
++    // wait for timeout to stop.
++    if (!value &&
++        value ==
++            sdbusplus::xyz::openbmc_project::Led::server::Group::asserted())
++    {
++        return value;
++    }
++
++    if (value)
++    {
++        if (effecterID == 0)
++        {
++            effecterID = getEffecterID();
++        }
++
++        if (effecterID != 0)
++        {
++            // Call setHostStateEffecter method to notify PHYP to start lamp
++            // test. If user set Asserted to true again, need to notify PHYP to
++            // start lamptest again.
++            uint8_t rc = setHostStateEffecter(effecterID);
++            if (rc)
++            {
++                throw sdbusplus::exception::SdBusError(
++                    static_cast<int>(std::errc::invalid_argument),
++                    "Set Host State Effector to start lamp test failed");
++            }
++            else
++            {
++                return sdbusplus::xyz::openbmc_project::Led::server::Group::
++                    asserted(value);
++            }
++        }
++        else
++        {
++            throw sdbusplus::exception::SdBusError(
++                static_cast<int>(std::errc::invalid_argument),
++                "Get Effecter ID failed, effecter = 0");
++        }
++    }
++
++    return sdbusplus::xyz::openbmc_project::Led::server::Group::asserted(value);
++}
++
++uint16_t HostLampTest::getEffecterID()
++{
++    uint16_t effecterID = 0;
++
++    if (!pdrRepo)
++    {
++        return effecterID;
++    }
++
++    // INDICATOR is a logical entity, so the bit 15 in entity type is set.
++    pdr::EntityType entityType = PLDM_ENTITY_INDICATOR | 0x8000;
++
++    auto stateEffecterPDRs = pldm::utils::findStateEffecterPDR(
++        mctp_eid, entityType,
++        static_cast<uint16_t>(PLDM_STATE_SET_IDENTIFY_STATE), pdrRepo);
++
++    if (stateEffecterPDRs.empty())
++    {
++        error(
++            "Lamp Test: The state set PDR can not be found, entityType = {ENTITY_TYP}",
++            "ENTITY_TYP", entityType);
++        return effecterID;
++    }
++
++    for (const auto& rep : stateEffecterPDRs)
++    {
++        auto pdr = reinterpret_cast<const pldm_state_effecter_pdr*>(rep.data());
++        effecterID = pdr->effecter_id;
++        break;
++    }
++
++    return effecterID;
++}
++
++uint8_t HostLampTest::setHostStateEffecter(uint16_t effecterID)
++{
++    constexpr uint8_t effecterCount = 1;
++    auto instanceId = instanceIdDb.next(mctp_eid);
++
++    std::vector<uint8_t> requestMsg(sizeof(pldm_msg_hdr) + sizeof(effecterID) +
++                                    sizeof(effecterCount) +
++                                    sizeof(set_effecter_state_field));
++    auto request = reinterpret_cast<pldm_msg*>(requestMsg.data());
++    set_effecter_state_field stateField{PLDM_REQUEST_SET,
++                                        PLDM_STATE_SET_IDENTIFY_STATE_ASSERTED};
++    auto rc = encode_set_state_effecter_states_req(
++        instanceId, effecterID, effecterCount, &stateField, request);
++    if (rc != PLDM_SUCCESS)
++    {
++        instanceIdDb.free(mctp_eid, instanceId);
++        error("Failed to encode_set_state_effecter_states_req, rc = {RC}", "RC",
++              static_cast<int>(rc));
++        return rc;
++    }
++
++    auto setStateEffecterStatesResponseHandler =
++        [](mctp_eid_t /*eid*/, const pldm_msg* response, size_t respMsgLen) {
++        if (!response || !respMsgLen)
++        {
++            error(
++                "Failed to receive response for the Set State Effecter States");
++            return;
++        }
++
++        uint8_t completionCode{};
++        auto rc = decode_set_state_effecter_states_resp(response, respMsgLen,
++                                                        &completionCode);
++
++        if (rc != PLDM_SUCCESS || completionCode != PLDM_SUCCESS)
++        {
++            error(
++                "Failed to decode_set_state_effecter_states_resp: rc={RC}, cc={CC}",
++                "RC", rc, "CC", static_cast<unsigned>(completionCode));
++        }
++    };
++
++    rc = handler->registerRequest(
++        mctp_eid, instanceId, PLDM_PLATFORM, PLDM_SET_STATE_EFFECTER_STATES,
++        std::move(requestMsg),
++        std::move(setStateEffecterStatesResponseHandler));
++    if (rc != PLDM_SUCCESS)
++    {
++        error("Failed to send the the Set State Effecter States request");
++    }
++
++    return rc;
++}
++
++} // namespace led
++} // namespace pldm
+diff --git a/oem/ibm/host-bmc/host_lamp_test.hpp b/oem/ibm/host-bmc/host_lamp_test.hpp
+new file mode 100644
+index 0000000..67e5593
+--- /dev/null
++++ b/oem/ibm/host-bmc/host_lamp_test.hpp
+@@ -0,0 +1,112 @@
++#pragma once
++
++#include "pldmd/dbus_impl_pdr.hpp"
++#include "pldmd/dbus_impl_requester.hpp"
++#include "requester/handler.hpp"
++
++#include <sdbusplus/server/object.hpp>
++#include <xyz/openbmc_project/Led/Group/server.hpp>
++
++#include <string>
++
++using namespace pldm::dbus_api;
++
++namespace pldm
++{
++namespace led
++{
++
++using LEDGroupObj = sdbusplus::server::object_t<
++    sdbusplus::xyz::openbmc_project::Led::server::Group>;
++
++class HostLampTestInterfaces
++{
++  public:
++    virtual ~HostLampTestInterfaces() {}
++
++    virtual uint16_t getEffecterID() = 0;
++    virtual uint8_t setHostStateEffecter(uint16_t effecterID) = 0;
++};
++
++/** @class HostLampTest
++ *  @brief Manages group of Host lamp test LEDs
++ */
++class HostLampTest : public HostLampTestInterfaces, public LEDGroupObj
++{
++  public:
++    HostLampTest() = delete;
++    ~HostLampTest() = default;
++    HostLampTest(const HostLampTest&) = delete;
++    HostLampTest& operator=(const HostLampTest&) = delete;
++    HostLampTest(HostLampTest&&) = delete;
++    HostLampTest& operator=(HostLampTest&&) = delete;
++
++    /** @brief Constructs LED Group
++     *
++     * @param[in] bus           - Handle to system dbus
++     * @param[in] objPath       - The D-Bus path that hosts LED group
++     * @param[in] mctp_fd       - MCTP file descriptor
++     * @param[in] mctp_eid      - MCTP EID
++     * @param[in] instanceIdDb  - InstanceIdDb object to obtain instance id
++     * @param[in] repo          - pointer to BMC's primary PDR repo
++     * @param[in] handler       - PLDM request handler
++     */
++    HostLampTest(sdbusplus::bus_t& bus, const std::string& objPath,
++                 uint8_t mctp_eid, pldm::InstanceIdDb& instanceIdDb,
++                 pldm_pdr* repo,
++                 pldm::requester::Handler<pldm::requester::Request>* handler) :
++        LEDGroupObj(bus, objPath.c_str()),
++        path(objPath), mctp_eid(mctp_eid), instanceIdDb(instanceIdDb),
++        pdrRepo(repo), handler(handler)
++    {}
++
++    /** @brief Property SET Override function
++     *
++     *  @param[in]  value   -  True or False
++     *  @return             -  Success or exception thrown
++     */
++    bool asserted(bool value) override;
++
++    /** @brief Property GET Override function
++     *
++     *  @return             -  True or False
++     */
++    bool asserted() const override;
++
++    /** @brief Get effecterID from PDRs.
++     *
++     *  @return effecterID
++     */
++    uint16_t getEffecterID() override;
++
++    /** @brief Set state effecter states to PHYP.
++     *
++     *  @param[in]  effecterID   -  effecterID
++     *
++     *  @return  rc              -  PLDM completion codes
++     */
++    uint8_t setHostStateEffecter(uint16_t effecterID) override;
++
++  private:
++    /** @brief Path of the group instance */
++    std::string path;
++
++    /** @brief MCTP EID of host firmware */
++    uint8_t mctp_eid;
++
++    /** @brief Reference to the InstanceIdDb object to obtain instance id
++     */
++    pldm::InstanceIdDb& instanceIdDb;
++
++    /** @brief pointer to BMC's primary PDR repo */
++    const pldm_pdr* pdrRepo;
++
++    /** @brief Effecter ID */
++    uint16_t effecterID = 0;
++
++    /** @brief PLDM request handler */
++    pldm::requester::Handler<pldm::requester::Request>* handler;
++};
++
++} // namespace led
++} // namespace pldm
+diff --git a/oem/ibm/test/host_bmc_lamp_test.cpp b/oem/ibm/test/host_bmc_lamp_test.cpp
+new file mode 100644
+index 0000000..7d75649
+--- /dev/null
++++ b/oem/ibm/test/host_bmc_lamp_test.cpp
+@@ -0,0 +1,51 @@
++#include "oem/ibm/host-bmc/host_lamp_test.hpp"
++#include "pldmd/dbus_impl_requester.hpp"
++#include "test/test_instance_id.hpp"
++
++#include <string.h>
++
++#include <gmock/gmock.h>
++#include <gtest/gtest.h>
++
++using namespace pldm::led;
++using ::testing::DoAll;
++using ::testing::Return;
++using ::testing::SetArgPointee;
++
++class MockLampTest : public HostLampTest
++{
++  public:
++    MockLampTest(sdbusplus::bus::bus& bus, const std::string& objPath,
++                 uint8_t mctp_eid, pldm::InstanceIdDb& instanceIdDb,
++                 pldm_pdr* repo,
++                 pldm::requester::Handler<pldm::requester::Request>* handler) :
++        HostLampTest(bus, objPath, mctp_eid, instanceIdDb, repo, handler)
++    {}
++
++    MOCK_METHOD(uint16_t, getEffecterID, (), (override));
++    MOCK_METHOD(uint8_t, setHostStateEffecter, (uint16_t effecterId),
++                (override));
++};
++
++TEST(TestLamp, Asserted)
++{
++    sdbusplus::bus::bus bus = sdbusplus::bus::new_default();
++    TestInstanceIdDb instanceIdDb;
++
++    MockLampTest lampTest(bus, "/xyz/openbmc_project/led/groups/host_lamp_test",
++                          0, instanceIdDb, nullptr, nullptr);
++
++    lampTest.asserted(false);
++    EXPECT_EQ(lampTest.asserted(), false);
++
++    EXPECT_CALL(lampTest, getEffecterID())
++        .Times(2)
++        .WillOnce(Return(0))
++        .WillOnce(Return(1));
++    EXPECT_CALL(lampTest, setHostStateEffecter(1)).Times(1).WillOnce(Return(0));
++
++    ASSERT_THROW(lampTest.asserted(true), sdbusplus::exception::SdBusError);
++
++    lampTest.asserted(true);
++    EXPECT_EQ(lampTest.asserted(), true);
++}
+diff --git a/pldmd/oem_ibm.hpp b/pldmd/oem_ibm.hpp
+index 2fa7521..60e2a51 100644
+--- a/pldmd/oem_ibm.hpp
++++ b/pldmd/oem_ibm.hpp
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include "../oem/ibm/host-bmc/host_lamp_test.hpp"
+ #include "../oem/ibm/libpldmresponder/file_io.hpp"
+ #include "../oem/ibm/libpldmresponder/fru_oem_ibm.hpp"
+ #include "../oem/ibm/libpldmresponder/oem_ibm_handler.hpp"
+@@ -80,6 +81,8 @@ class OemIBM
+         createOemIbmPlatformHandler();
+         oemIbmPlatformHandler->setPlatformHandler(platformHandler);
+ 
++        createHostLampTestHandler();
++
+         registerHandler();
+     }
+ 
+@@ -124,6 +127,14 @@ class OemIBM
+             oemFruHandler.get());
+     }
+ 
++    void createHostLampTestHandler()
++    {
++        auto& bus = pldm::utils::DBusHandler::getBus();
++        hostLampTest = std::make_unique<pldm::led::HostLampTest>(
++            bus, "/xyz/openbmc_project/led/groups/host_lamp_test", mctp_eid,
++            instanceIdDb, repo, reqHandler);
++    }
++
+     /** @brief Method for registering PLDM OEM handler */
+     void registerHandler()
+     {
+@@ -176,6 +187,8 @@ class OemIBM
+ 
+     /** @brief oem IBM Fru handler*/
+     pldm::responder::oem_ibm_fru::Handler* oemIbmFruHandler = nullptr;
++
++    std::unique_ptr<pldm::led::HostLampTest> hostLampTest;
+ };
+ 
+ } // namespace oem_ibm
+-- 
+2.25.1
+

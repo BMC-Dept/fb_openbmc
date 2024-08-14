@@ -1,0 +1,221 @@
+From 6b901e4a78338605c27c477f2a254dd3c3c38c72 Mon Sep 17 00:00:00 2001
+From: Thu Nguyen <thu@os.amperecomputing.com>
+Date: Wed, 10 Jul 2024 15:21:10 +0700
+Subject: [PATCH 18/40] requester: Use return code instead of throwing
+ exception
+
+The coroutine API should only forward error code and response data
+to the caller when sends/receives PLDM message instead check the
+response and thrown exception.
+
+The `sendRecvMsg` API will response tuple of error code, response and
+response length as below:
+
++ [error_code, _, _] if registerRequest fails with `error_code`.
++ [PLDM_ERROR_NOT_READY, nullptr, 0] if the request is timed out.
++ [PLDM_SUCCESS, resp, len] if succeeded.
+
+Signed-off-by: Khang Nguyen Duy <khangng@amperecomputing.com>
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: Id8262d147e9fed50af8f55f1c611a3a3b153b6e3
+---
+ platform-mc/terminus_manager.cpp | 19 ++++++-----
+ requester/handler.hpp            | 54 +++++++++++++++++++-------------
+ requester/test/handler_test.cpp  |  5 +--
+ 3 files changed, 45 insertions(+), 33 deletions(-)
+
+diff --git a/platform-mc/terminus_manager.cpp b/platform-mc/terminus_manager.cpp
+index 13a933f..0b5cf88 100644
+--- a/platform-mc/terminus_manager.cpp
++++ b/platform-mc/terminus_manager.cpp
+@@ -363,24 +363,28 @@ exec::task<int>
+                                              const pldm_msg** responseMsg,
+                                              size_t* responseLen)
+ {
++    int rc = 0;
+     try
+     {
+-        std::tie(*responseMsg, *responseLen) =
++        std::tie(rc, *responseMsg, *responseLen) =
+             co_await handler.sendRecvMsg(eid, std::move(request));
+-        co_return PLDM_SUCCESS;
+     }
+     catch (const sdbusplus::exception_t& e)
+     {
+         lg2::error(
+-            "Send and Receive PLDM message over MCTP failed with error - {ERROR}.",
++            "Send and Receive PLDM message over MCTP throw error - {ERROR}.",
+             "ERROR", e);
+         co_return PLDM_ERROR;
+     }
+-    catch (const int& rc)
++    catch (const int& e)
+     {
+-        lg2::error("sendRecvPldmMsgOverMctp failed. rc={RC}", "RC", rc);
++        lg2::error(
++            "Send and Receive PLDM message over MCTP throw int error - {ERROR}.",
++            "ERROR", e);
+         co_return PLDM_ERROR;
+     }
++
++    co_return rc;
+ }
+ 
+ exec::task<int> TerminusManager::getTidOverMctp(mctp_eid_t eid, pldm_tid_t* tid)
+@@ -600,11 +604,6 @@ exec::task<int> TerminusManager::sendRecvPldmMsg(pldm_tid_t tid,
+     auto rc = co_await sendRecvPldmMsgOverMctp(eid, request, responseMsg,
+                                                responseLen);
+ 
+-    if (responseMsg == nullptr || !responseLen)
+-    {
+-        co_return PLDM_ERROR_INVALID_DATA;
+-    }
+-
+     co_return rc;
+ }
+ 
+diff --git a/requester/handler.hpp b/requester/handler.hpp
+index 3966a4c..c665822 100644
+--- a/requester/handler.hpp
++++ b/requester/handler.hpp
+@@ -67,6 +67,17 @@ struct RequestKeyHasher
+ using ResponseHandler = std::function<void(
+     mctp_eid_t eid, const pldm_msg* response, size_t respMsgLen)>;
+ 
++/** @brief The response from SendRecvMsg with coroutine API
++ *
++ *  The response when registers PLDM request message using the SendRecvMsg
++ *  with coroutine API.
++ *  Responded tuple includes <CompleteCode, ResponseMgs, ResponseMsgLength>
++ *  Value: [PLDM_ERROR, _, _] if registerRequest fails.
++ *         [PLDM_ERROR_NOT_READY, nullptr, 0] if timed out.
++ *         [PLDM_SUCCESS, ResponseMsg, ResponseMsgLength] if succeeded
++ */
++using SendRecvCoResp = std::tuple<int, const pldm_msg*, size_t>;
++
+ /** @struct RegisteredRequest
+  *
+  *  This struct is used to store the registered request to one endpoint.
+@@ -393,11 +404,12 @@ class Handler
+ 
+     /** @brief Wrap registerRequest with coroutine API.
+      *
+-     *  @return A tuple of [return_code, pldm::Response].
+-     *          pldm::Response is empty on non-zero return_code.
+-     *          Otherwise, filled with pldm_msg* content.
++     *  @return Return [PLDM_ERROR, _, _] if registerRequest fails.
++     *          Return [PLDM_ERROR_NOT_READY, nullptr, 0] if timed out.
++     *          Return [PLDM_SUCCESS, resp, len] if succeeded
+      */
+-    stdexec::sender auto sendRecvMsg(mctp_eid_t eid, pldm::Request&& request);
++    stdexec::sender_of<stdexec::set_value_t(SendRecvCoResp)> auto
++        sendRecvMsg(mctp_eid_t eid, pldm::Request&& request);
+ 
+   private:
+     PldmTransport* pldmTransport; //!< PLDM transport object
+@@ -504,7 +516,9 @@ struct SendRecvMsgOperation
+             std::bind(&SendRecvMsgOperation::onComplete, &op, _1, _2, _3));
+         if (rc)
+         {
+-            return stdexec::set_error(std::move(op.receiver), rc);
++            return stdexec::set_value(std::move(op.receiver), rc,
++                                      static_cast<const pldm_msg*>(nullptr),
++                                      static_cast<size_t>(0));
+         }
+ 
+         if (stopToken.stop_possible())
+@@ -538,16 +552,13 @@ struct SendRecvMsgOperation
+     {
+         stopCallback.reset();
+         assert(eid == this->requestKey.eid);
+-        if (!response || !respMsgLen)
+-        {
+-            return stdexec::set_error(std::move(receiver),
+-                                      static_cast<int>(PLDM_ERROR));
+-        }
+-        else
++        auto rc = PLDM_SUCCESS;
++        if (!response && !respMsgLen)
+         {
+-            return stdexec::set_value(std::move(receiver), response,
+-                                      respMsgLen);
++            rc = PLDM_ERROR_NOT_READY;
+         }
++        return stdexec::set_value(std::move(receiver), static_cast<int>(rc),
++                                  response, respMsgLen);
+     }
+ 
+   private:
+@@ -607,8 +618,8 @@ struct SendRecvMsgSender
+     friend auto tag_invoke(stdexec::get_completion_signatures_t,
+                            const SendRecvMsgSender&, auto)
+         -> stdexec::completion_signatures<
+-            stdexec::set_value_t(const pldm_msg*, size_t),
+-            stdexec::set_error_t(int), stdexec::set_stopped_t()>;
++            stdexec::set_value_t(int, const pldm_msg*, size_t),
++            stdexec::set_stopped_t()>;
+ 
+     /** @brief Execute the sending the request message */
+     template <stdexec::receiver R>
+@@ -631,22 +642,23 @@ struct SendRecvMsgSender
+     pldm::Request request;
+ };
+ 
+-/** @brief This function handles sending the request message and responses the
+- *         response message for the caller.
++/** @brief Wrap registerRequest with coroutine API.
+  *
+  *  @param[in] eid - endpoint ID of the remote MCTP endpoint
+  *  @param[in] request - PLDM request message
+  *
+- *  @return The response message and response message length.
++ *  @return Return [PLDM_ERROR, _, _] if registerRequest fails.
++ *          Return [PLDM_ERROR_NOT_READY, nullptr, 0] if timed out.
++ *          Return [PLDM_SUCCESS, resp, len] if succeeded
+  */
+ template <class RequestInterface>
+-stdexec::sender auto
++stdexec::sender_of<stdexec::set_value_t(SendRecvCoResp)> auto
+     Handler<RequestInterface>::sendRecvMsg(mctp_eid_t eid,
+                                            pldm::Request&& request)
+ {
+     return SendRecvMsgSender(*this, eid, std::move(request)) |
+-           stdexec::then([](const pldm_msg* responseMsg, size_t respMsgLen) {
+-        return std::make_tuple(responseMsg, respMsgLen);
++           stdexec::then([](int rc, const pldm_msg* resp, size_t respLen) {
++        return std::make_tuple(rc, resp, respLen);
+     });
+ }
+ 
+diff --git a/requester/test/handler_test.cpp b/requester/test/handler_test.cpp
+index bff08ca..4ac7861 100644
+--- a/requester/test/handler_test.cpp
++++ b/requester/test/handler_test.cpp
+@@ -167,13 +167,14 @@ TEST_F(HandlerTest, singleRequestResponseScenarioUsingCoroutine)
+         pldm::Request request(sizeof(pldm_msg_hdr) + sizeof(uint8_t), 0);
+         const pldm_msg* responseMsg;
+         size_t responseLen;
++        int rc = PLDM_SUCCESS;
+ 
+         auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+         requestPtr->hdr.instance_id = instanceId;
+ 
+         try
+         {
+-            std::tie(responseMsg, responseLen) =
++            std::tie(rc, responseMsg, responseLen) =
+                 co_await reqHandler.sendRecvMsg(eid, std::move(request));
+         }
+         catch (...)
+@@ -245,7 +246,7 @@ TEST_F(HandlerTest, asyncRequestResponseByCoroutine)
+             auto rc = encode_get_tid_req(instanceId, requestMsg);
+             EXPECT_EQ(rc, PLDM_SUCCESS);
+ 
+-            std::tie(responseMsg, responseLen) =
++            std::tie(rc, responseMsg, responseLen) =
+                 co_await handler.sendRecvMsg(eid, std::move(request));
+             EXPECT_NE(responseLen, 0);
+ 
+-- 
+2.25.1
+

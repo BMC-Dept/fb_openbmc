@@ -1,0 +1,217 @@
+From b40f4f8f10b0c2a805ab7b86ec9749a18690d59a Mon Sep 17 00:00:00 2001
+From: Archana Kakani <archana.kakani@ibm.com>
+Date: Thu, 6 Jun 2024 01:04:38 -0500
+Subject: [PATCH 03/40] pldm: Implement Cable interface
+
+Adding support to host Cable dbus interface.
+Based on the PDRs received from remote PLDM terminus,
+PLDM hosts the dbus interface based on the entity type.
+The Cable interface is defined at [1].
+
+[1]: https://github.com/openbmc/phosphor-dbus-interfaces/blob/master/yaml/xyz/openbmc_project/Inventory/Item/Cable.interface.yaml
+
+Change-Id: I23f02387c1d50ce8d9c5921760740760cea2cd47
+Signed-off-by: Archana Kakani <archana.kakani@ibm.com>
+---
+ host-bmc/dbus/cable.cpp       | 34 +++++++++++++++++++++++
+ host-bmc/dbus/cable.hpp       | 51 +++++++++++++++++++++++++++++++++++
+ host-bmc/dbus/custom_dbus.cpp | 19 +++++++++++++
+ host-bmc/dbus/custom_dbus.hpp | 17 ++++++++++++
+ host-bmc/test/meson.build     |  1 +
+ libpldmresponder/meson.build  |  1 +
+ 6 files changed, 123 insertions(+)
+ create mode 100644 host-bmc/dbus/cable.cpp
+ create mode 100644 host-bmc/dbus/cable.hpp
+
+diff --git a/host-bmc/dbus/cable.cpp b/host-bmc/dbus/cable.cpp
+new file mode 100644
+index 0000000..fe298c1
+--- /dev/null
++++ b/host-bmc/dbus/cable.cpp
+@@ -0,0 +1,34 @@
++#include "cable.hpp"
++
++namespace pldm
++{
++namespace dbus
++{
++
++double Cable::length() const
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cable::
++        length();
++}
++
++double Cable::length(double value)
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cable::
++        length(value);
++}
++
++std::string Cable::cableTypeDescription() const
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cable::
++        cableTypeDescription();
++}
++
++std::string Cable::cableTypeDescription(std::string value)
++{
++    return sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cable::
++        cableTypeDescription(value);
++}
++
++} // namespace dbus
++
++} // namespace pldm
+diff --git a/host-bmc/dbus/cable.hpp b/host-bmc/dbus/cable.hpp
+new file mode 100644
+index 0000000..d68c0be
+--- /dev/null
++++ b/host-bmc/dbus/cable.hpp
+@@ -0,0 +1,51 @@
++#pragma once
++
++#include <sdbusplus/bus.hpp>
++#include <sdbusplus/server.hpp>
++#include <sdbusplus/server/object.hpp>
++#include <xyz/openbmc_project/Inventory/Item/Cable/server.hpp>
++
++#include <string>
++
++namespace pldm
++{
++namespace dbus
++{
++
++using ItemCable = sdbusplus::server::object_t<
++    sdbusplus::xyz::openbmc_project::Inventory::Item::server::Cable>;
++
++/**
++ * @class Cable
++ * @brief Dbus support for cable interface and attributes
++ */
++class Cable : public ItemCable
++{
++  public:
++    Cable() = delete;
++    ~Cable() = default;
++    Cable(const Cable&) = delete;
++    Cable& operator=(const Cable&) = delete;
++
++    Cable(sdbusplus::bus_t& bus, const std::string& objPath) :
++        ItemCable(bus, objPath.c_str())
++    {
++        // cable objects does not need to be store in serialized memory
++    }
++
++    /** Get length of the cable in meters */
++    double length() const override;
++
++    /** Set length of the cable in meters */
++    double length(double value) override;
++
++    /** Get string used to provide the type of
++          a cable, such as optical or coppervalue */
++    std::string cableTypeDescription() const override;
++
++    /** Set Cable type description */
++    std::string cableTypeDescription(std::string value) override;
++};
++
++} // namespace dbus
++} // namespace pldm
+diff --git a/host-bmc/dbus/custom_dbus.cpp b/host-bmc/dbus/custom_dbus.cpp
+index cfe3a42..204c9fa 100644
+--- a/host-bmc/dbus/custom_dbus.cpp
++++ b/host-bmc/dbus/custom_dbus.cpp
+@@ -98,5 +98,24 @@ void CustomDBus::setPCIeDeviceProps(const std::string& path, size_t lanesInUse,
+     }
+ }
+ 
++void CustomDBus::implementCableInterface(const std::string& path)
++{
++    if (!cable.contains(path))
++    {
++        cable.emplace(path, std::make_unique<Cable>(
++                                pldm::utils::DBusHandler::getBus(), path));
++    }
++}
++
++void CustomDBus::setCableAttributes(const std::string& path, double length,
++                                    const std::string& cableDescription)
++{
++    if (cable.contains(path))
++    {
++        cable.at(path)->length(length);
++        cable.at(path)->cableTypeDescription(cableDescription);
++    }
++}
++
+ } // namespace dbus
+ } // namespace pldm
+diff --git a/host-bmc/dbus/custom_dbus.hpp b/host-bmc/dbus/custom_dbus.hpp
+index 5d7cf2e..8c1dba9 100644
+--- a/host-bmc/dbus/custom_dbus.hpp
++++ b/host-bmc/dbus/custom_dbus.hpp
+@@ -1,5 +1,6 @@
+ #pragma once
+ 
++#include "cable.hpp"
+ #include "common/utils.hpp"
+ #include "cpu_core.hpp"
+ #include "pcie_device.hpp"
+@@ -112,11 +113,27 @@ class CustomDBus
+     void setPCIeDeviceProps(const std::string& path, size_t lanesInUse,
+                             const std::string& value);
+ 
++    /** @brief Implement PCIe Cable Interface
++     *
++     *  @param[in] path - the object path
++     */
++    void implementCableInterface(const std::string& path);
++
++    /** @brief set cable attributes
++     *
++     *  @param[in] path - the object path
++     *  @param[in] length - length of the wire
++     *  @param[in] cableDescription - cable details
++     */
++    void setCableAttributes(const std::string& path, double length,
++                            const std::string& cableDescription);
++
+   private:
+     std::unordered_map<ObjectPath, std::unique_ptr<LocationIntf>> location;
+     std::unordered_map<ObjectPath, std::unique_ptr<CPUCore>> cpuCore;
+     std::unordered_map<ObjectPath, std::unique_ptr<PCIeDevice>> pcieDevice;
+     std::unordered_map<ObjectPath, std::unique_ptr<PCIeSlot>> pcieSlot;
++    std::unordered_map<ObjectPath, std::unique_ptr<Cable>> cable;
+ };
+ 
+ } // namespace dbus
+diff --git a/host-bmc/test/meson.build b/host-bmc/test/meson.build
+index d2846b2..b649255 100644
+--- a/host-bmc/test/meson.build
++++ b/host-bmc/test/meson.build
+@@ -6,6 +6,7 @@ test_sources = [
+   '../../common/utils.cpp',
+   '../utils.cpp',
+   '../dbus/custom_dbus.cpp',
++  '../dbus/cable.cpp',
+   '../dbus/cpu_core.cpp',
+   '../dbus/pcie_device.cpp',
+   '../dbus/pcie_slot.cpp',
+diff --git a/libpldmresponder/meson.build b/libpldmresponder/meson.build
+index 6d82dca..15166e2 100644
+--- a/libpldmresponder/meson.build
++++ b/libpldmresponder/meson.build
+@@ -29,6 +29,7 @@ sources = [
+   '../host-bmc/dbus_to_host_effecters.cpp',
+   '../host-bmc/host_condition.cpp',
+   '../host-bmc/dbus/custom_dbus.cpp',
++  '../host-bmc/dbus/cable.cpp',
+   '../host-bmc/dbus/cpu_core.cpp',
+   '../host-bmc/utils.cpp',
+   '../host-bmc/dbus/pcie_device.cpp',
+-- 
+2.25.1
+

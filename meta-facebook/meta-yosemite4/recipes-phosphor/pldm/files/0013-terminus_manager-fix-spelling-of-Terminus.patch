@@ -1,0 +1,61 @@
+From 29d2f4aa901c1e63ee02fdf9883ca1e992fb5985 Mon Sep 17 00:00:00 2001
+From: Patrick Williams <patrick@stwcx.xyz>
+Date: Sat, 13 Jul 2024 16:44:15 -0500
+Subject: [PATCH 13/40] terminus_manager: fix spelling of Terminus
+
+The function `findTerminusPtr` was missing an "r".
+
+Signed-off-by: Patrick Williams <patrick@stwcx.xyz>
+Change-Id: Id5e9eefa6031f459caae076833c6c64161a13d71
+---
+ platform-mc/terminus_manager.cpp | 6 +++---
+ platform-mc/terminus_manager.hpp | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/platform-mc/terminus_manager.cpp b/platform-mc/terminus_manager.cpp
+index bb40d8d..13a933f 100644
+--- a/platform-mc/terminus_manager.cpp
++++ b/platform-mc/terminus_manager.cpp
+@@ -144,7 +144,7 @@ void TerminusManager::discoverMctpTerminus(const MctpInfos& mctpInfos)
+                 exec::default_task_context<void>());
+ }
+ 
+-auto TerminusManager::findTeminusPtr(const MctpInfo& mctpInfo)
++auto TerminusManager::findTerminusPtr(const MctpInfo& mctpInfo)
+ {
+     auto foundIter = std::find_if(termini.begin(), termini.end(),
+                                   [&](const auto& terminusPair) {
+@@ -170,7 +170,7 @@ exec::task<int> TerminusManager::discoverMctpTerminusTask()
+         const MctpInfos& mctpInfos = queuedMctpInfos.front();
+         for (const auto& mctpInfo : mctpInfos)
+         {
+-            auto it = findTeminusPtr(mctpInfo);
++            auto it = findTerminusPtr(mctpInfo);
+             if (it == termini.end())
+             {
+                 co_await initMctpTerminus(mctpInfo);
+@@ -193,7 +193,7 @@ void TerminusManager::removeMctpTerminus(const MctpInfos& mctpInfos)
+     // remove terminus
+     for (const auto& mctpInfo : mctpInfos)
+     {
+-        auto it = findTeminusPtr(mctpInfo);
++        auto it = findTerminusPtr(mctpInfo);
+         if (it == termini.end())
+         {
+             continue;
+diff --git a/platform-mc/terminus_manager.hpp b/platform-mc/terminus_manager.hpp
+index fccbb1c..2816fb7 100644
+--- a/platform-mc/terminus_manager.hpp
++++ b/platform-mc/terminus_manager.hpp
+@@ -152,7 +152,7 @@ class TerminusManager
+      *
+      *  @param[in] mctpInfos - list information of the MCTP endpoints
+      */
+-    auto findTeminusPtr(const MctpInfo& mctpInfo);
++    auto findTerminusPtr(const MctpInfo& mctpInfo);
+ 
+     /** @brief The coroutine task execute by discoverMctpTerminus()
+      *
+-- 
+2.25.1
+

@@ -1,7 +1,7 @@
-From efc8acfae27d0436ad009b9432dc6a7c7db78f5a Mon Sep 17 00:00:00 2001
+From 385501742b0368035fac7e1cec3be1ebf1554bb1 Mon Sep 17 00:00:00 2001
 From: Gilbert Chen <gilbertc@nvidia.com>
 Date: Tue, 2 May 2023 10:20:10 +0000
-Subject: [PATCH 03/10] platform-mc: Added EventManager
+Subject: [PATCH 25/40] platform-mc: Added EventManager
 
 Added eventManager to handle sensor event class(00h),
 pldmMessagePollEvent class(05h)  and OEM CPER event class(FAh)
@@ -24,7 +24,7 @@ Signed-off-by: Gilbert Chen <gilbertc@nvidia.com>
  platform-mc/platform_manager.hpp           |  45 ++
  platform-mc/sensor_manager.cpp             |  13 +-
  platform-mc/sensor_manager.hpp             |   5 +-
- platform-mc/terminus.cpp                   |   6 +-
+ platform-mc/terminus.cpp                   |  23 +-
  platform-mc/terminus.hpp                   |  12 +
  platform-mc/terminus_manager.hpp           |  17 +-
  platform-mc/test/event_manager_test.cpp    | 457 ++++++++++++++
@@ -34,18 +34,18 @@ Signed-off-by: Gilbert Chen <gilbertc@nvidia.com>
  platform-mc/test/mock_terminus_manager.hpp |   3 +-
  platform-mc/test/sensor_manager_test.cpp   |   4 +-
  platform-mc/test/terminus_manager_test.cpp |   2 +-
- pldmd/pldmd.cpp                            |  29 +-
- 22 files changed, 1834 insertions(+), 19 deletions(-)
+ pldmd/pldmd.cpp                            |  32 +-
+ 22 files changed, 1852 insertions(+), 21 deletions(-)
  create mode 100644 platform-mc/event_manager.cpp
  create mode 100644 platform-mc/event_manager.hpp
  create mode 100644 platform-mc/test/event_manager_test.cpp
  create mode 100644 platform-mc/test/mock_event_manager.hpp
 
 diff --git a/libpldmresponder/platform.cpp b/libpldmresponder/platform.cpp
-index 7d50b5d..c04d7b4 100644
+index 1e0955a..8ddaa29 100644
 --- a/libpldmresponder/platform.cpp
 +++ b/libpldmresponder/platform.cpp
-@@ -379,15 +379,20 @@ Response Handler::platformEventMessage(const pldm_msg* request,
+@@ -376,15 +376,20 @@ Response Handler::platformEventMessage(const pldm_msg* request,
          try
          {
              const auto& handlers = eventHandlers.at(eventClass);
@@ -970,7 +970,7 @@ index 7e79a29..3305d66 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/manager.hpp b/platform-mc/manager.hpp
-index 342c028..d0dacae 100644
+index d8210b4..f43f700 100644
 --- a/platform-mc/manager.hpp
 +++ b/platform-mc/manager.hpp
 @@ -4,6 +4,7 @@
@@ -994,7 +994,7 @@ index 342c028..d0dacae 100644
      {}
  
      /** @brief Helper function to do the actions before discovering terminus
-@@ -84,6 +86,82 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
+@@ -97,6 +99,82 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
          sensorManager.stopPolling(tid);
      }
  
@@ -1077,7 +1077,7 @@ index 342c028..d0dacae 100644
    private:
      /** @brief List of discovered termini */
      TerminiMapper termini{};
-@@ -96,6 +174,9 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
+@@ -109,6 +187,9 @@ class Manager : public pldm::MctpDiscoveryHandlerIntf
  
      /** @brief Store platform manager handler */
      SensorManager sensorManager;
@@ -1088,10 +1088,10 @@ index 342c028..d0dacae 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/platform_manager.cpp b/platform-mc/platform_manager.cpp
-index 9ff3bdf..c009c1a 100644
+index 21e4bcf..3e1a700 100644
 --- a/platform-mc/platform_manager.cpp
 +++ b/platform-mc/platform_manager.cpp
-@@ -13,6 +13,10 @@ namespace platform_mc
+@@ -15,6 +15,10 @@ namespace platform_mc
  
  exec::task<int> PlatformManager::initTerminus()
  {
@@ -1102,9 +1102,9 @@ index 9ff3bdf..c009c1a 100644
      for (auto& [tid, terminus] : termini)
      {
          if (terminus->initialized)
-@@ -40,7 +44,118 @@ exec::task<int> PlatformManager::initTerminus()
-                     "TID", tid, "ERROR", rc);
-             }
+@@ -36,7 +40,118 @@ exec::task<int> PlatformManager::initTerminus()
+ 
+             terminus->parseTerminusPDRs();
          }
 +
 +        uint16_t terminusMaxBufferSize = terminus->maxBufferSize;
@@ -1445,7 +1445,7 @@ index 8187ca1..9f3fe14 100644
      TerminusManager& terminusManager;
  
 diff --git a/platform-mc/sensor_manager.cpp b/platform-mc/sensor_manager.cpp
-index 97fbf1d..c1acf66 100644
+index 654f737..493696c 100644
 --- a/platform-mc/sensor_manager.cpp
 +++ b/platform-mc/sensor_manager.cpp
 @@ -1,5 +1,6 @@
@@ -1470,7 +1470,7 @@ index 97fbf1d..c1acf66 100644
  {
      // default priority sensor name spaces
      prioritySensorNameSpaces.emplace_back(
-@@ -213,6 +215,13 @@ exec::task<int> SensorManager::doSensorPollingTask(pldm_tid_t tid)
+@@ -251,6 +253,13 @@ exec::task<int> SensorManager::doSensorPollingTask(pldm_tid_t tid)
              co_return PLDM_SUCCESS;
          }
  
@@ -1485,7 +1485,7 @@ index 97fbf1d..c1acf66 100644
          for (auto& sensor : prioritySensors[tid])
          {
 diff --git a/platform-mc/sensor_manager.hpp b/platform-mc/sensor_manager.hpp
-index 861a3d4..6368299 100644
+index f21a5ab..d609a33 100644
 --- a/platform-mc/sensor_manager.hpp
 +++ b/platform-mc/sensor_manager.hpp
 @@ -38,7 +38,7 @@ class SensorManager
@@ -1497,7 +1497,7 @@ index 861a3d4..6368299 100644
          const std::filesystem::path& configJson = PLDM_T2_CONFIG_JSON);
  
      /** @brief starting sensor polling task
-@@ -112,6 +112,9 @@ class SensorManager
+@@ -130,6 +130,9 @@ class SensorManager
      /** @brief round robin sensor list */
      std::map<pldm_tid_t, std::queue<std::shared_ptr<NumericSensor>>>
          roundRobinSensors;
@@ -1508,10 +1508,10 @@ index 861a3d4..6368299 100644
  } // namespace platform_mc
  } // namespace pldm
 diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
-index 95caa40..32be0ad 100644
+index c725977..3bad6d3 100644
 --- a/platform-mc/terminus.cpp
 +++ b/platform-mc/terminus.cpp
-@@ -8,9 +8,13 @@ namespace pldm
+@@ -10,10 +10,29 @@ namespace pldm
  {
  namespace platform_mc
  {
@@ -1520,17 +1520,34 @@ index 95caa40..32be0ad 100644
  
  Terminus::Terminus(pldm_tid_t tid, uint64_t supportedTypes) :
 -    initialized(false), tid(tid), supportedTypes(supportedTypes)
+-{}
 +    initialized(false), maxBufferSize(MAX_MESSAGE_BUFFER_SIZE),
 +    synchronyConfigurationSupported(0), pollEvent(false), tid(tid),
 +    supportedTypes(supportedTypes)
++{
++    inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/PLDM_Device_" +
++                    std::to_string(tid);
++    try
++    {
++        inventoryItemBoardInft = std::make_unique<InventoryItemBoardIntf>(
++            utils::DBusHandler::getBus(), inventoryPath.c_str());
++    }
++    catch (const sdbusplus::exception_t& e)
++    {
++        lg2::error(
++            "Failed to create Inventory Board interface for device {PATH}",
++            "PATH", inventoryPath);
++        throw sdbusplus::xyz::openbmc_project::Common::Error::InvalidArgument();
++    }
++}
+ 
+ bool Terminus::doesSupportType(uint8_t type)
  {
-     inventoryPath = "/xyz/openbmc_project/inventory/Item/Board/PLDM_Device_" +
-                     std::to_string(tid);
 diff --git a/platform-mc/terminus.hpp b/platform-mc/terminus.hpp
-index 9105b05..d8b4137 100644
+index bdcb1d3..ff5bf5a 100644
 --- a/platform-mc/terminus.hpp
 +++ b/platform-mc/terminus.hpp
-@@ -102,6 +102,18 @@ class Terminus
+@@ -138,6 +138,18 @@ class Terminus
      /** @brief A flag to indicate if terminus has been initialized */
      bool initialized = false;
  
@@ -1550,7 +1567,7 @@ index 9105b05..d8b4137 100644
      std::vector<std::shared_ptr<NumericSensor>> numericSensors{};
  
 diff --git a/platform-mc/terminus_manager.hpp b/platform-mc/terminus_manager.hpp
-index fccbb1c..7c002d9 100644
+index 2816fb7..5e9f8a7 100644
 --- a/platform-mc/terminus_manager.hpp
 +++ b/platform-mc/terminus_manager.hpp
 @@ -54,10 +54,11 @@ class TerminusManager
@@ -2143,7 +2160,7 @@ index eb06734..db9d0e3 100644
  
      exec::task<int> sendRecvPldmMsgOverMctp(mctp_eid_t /*eid*/,
 diff --git a/platform-mc/test/sensor_manager_test.cpp b/platform-mc/test/sensor_manager_test.cpp
-index cd4e5a4..525b312 100644
+index 03cb7fd..0aaf9c1 100644
 --- a/platform-mc/test/sensor_manager_test.cpp
 +++ b/platform-mc/test/sensor_manager_test.cpp
 @@ -19,8 +19,8 @@ class SensorManagerTest : public testing::Test
@@ -2171,10 +2188,10 @@ index 460009d..0db976b 100644
      {}
  
 diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
-index 768c6c9..a309ca6 100644
+index 32b5a57..0a9de75 100644
 --- a/pldmd/pldmd.cpp
 +++ b/pldmd/pldmd.cpp
-@@ -260,6 +260,33 @@ int main(int argc, char** argv)
+@@ -270,10 +270,38 @@ int main(int argc, char** argv)
      // FRU table is built lazily when a FRU command or Get PDR command is
      // handled. To enable building FRU table, the FRU handler is passed to the
      // Platform handler.
@@ -2208,7 +2225,13 @@ index 768c6c9..a309ca6 100644
      auto platformHandler = std::make_unique<platform::Handler>(
          &dbusHandler, hostEID, &instanceIdDb, PDR_JSONS_DIR, pdrRepo.get(),
          hostPDRHandler.get(), dbusToPLDMEventHandler.get(), fruHandler.get(),
-@@ -292,8 +319,6 @@ int main(int argc, char** argv)
+-        platformConfigHandler.get(), &reqHandler, event, true);
++        platformConfigHandler.get(), &reqHandler, event, true,
++        addOnEventHandlers);
+ 
+     auto biosHandler = std::make_unique<bios::Handler>(
+         pldmTransport.getEventSource(), hostEID, &instanceIdDb, &reqHandler,
+@@ -302,8 +330,6 @@ int main(int argc, char** argv)
  
      std::unique_ptr<fw_update::Manager> fwManager =
          std::make_unique<fw_update::Manager>(event, reqHandler, instanceIdDb);

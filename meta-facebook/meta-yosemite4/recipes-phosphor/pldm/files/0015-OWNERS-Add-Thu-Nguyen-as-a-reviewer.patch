@@ -1,0 +1,41 @@
+From 3c29ebd596e03aa7d2aa21afd40b624c2da7da31 Mon Sep 17 00:00:00 2001
+From: Thu Nguyen <thu@os.amperecomputing.com>
+Date: Tue, 16 Jul 2024 08:50:31 +0000
+Subject: [PATCH 15/40] OWNERS: Add `Thu Nguyen` as a reviewer
+
+I have been actively contributing to OpenBMC/pldm source, especially for
+`platform-mc/` folder. Attached is a summary of my contributions to
+the repository [1].
+
+I would like to learn and help out on pldm reviews.
+
+[1] https://github.com/openbmc/pldm/commits?author=ThuBaNguyen
+
+Signed-off-by: Thu Nguyen <thu@os.amperecomputing.com>
+Change-Id: I2e9b769bacff96c91a0f2f211a1a3b4c41bc9411
+---
+ OWNERS | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/OWNERS b/OWNERS
+index 644ceda..162f7ac 100644
+--- a/OWNERS
++++ b/OWNERS
+@@ -39,6 +39,7 @@ owners:
+ reviewers:
+ - liuxiwei@ieisystem.com
+ - pavithrabarithaya07@gmail.com
++- thu@os.amperecomputing.com
+ 
+ matchers:
+ - partial_regex: ibm
+@@ -70,3 +71,6 @@ openbmc:
+ - name: Pavithra Barithaya
+   email: pavithrabarithaya07@gmail.com
+   discord: Pavithra B
++- name: Thu Nguyen
++  email: thu@os.amperecomputing.com
++  discord: Thu Nguyen
+-- 
+2.25.1
+

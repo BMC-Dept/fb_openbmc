@@ -1,7 +1,7 @@
-From c6062235ffd0eae8125b9542425cd7bff195c27f Mon Sep 17 00:00:00 2001
+From 6ce970e8a3cff5c210442498f2b32c91b442e47c Mon Sep 17 00:00:00 2001
 From: Delphine CC Chiu <Delphine_CC_Chiu@wiwynn.com>
 Date: Mon, 23 Oct 2023 17:06:54 +0800
-Subject: [PATCH 05/10] Support OEM-META write file request for post code
+Subject: [PATCH 27/40] Support OEM-META write file request for post code
  history
 
 Support write file req when multiple hosts send postcode to BMC
@@ -100,18 +100,18 @@ index b528095..8c18670 100644
      /** @brief Get Subtree path response from the mapper
       *
 diff --git a/libpldmresponder/meson.build b/libpldmresponder/meson.build
-index 63cbaa7..5d27166 100644
+index 4f62f4d..500e4f9 100644
 --- a/libpldmresponder/meson.build
 +++ b/libpldmresponder/meson.build
-@@ -31,6 +31,7 @@ sources = [
-   '../host-bmc/dbus/custom_dbus.cpp',
-   '../host-bmc/dbus/cpu_core.cpp',
+@@ -34,6 +34,7 @@ sources = [
    '../host-bmc/utils.cpp',
+   '../host-bmc/dbus/pcie_device.cpp',
+   '../host-bmc/dbus/pcie_slot.cpp',
 +  '../requester/configuration_discovery_handler.cpp',
    'event_parser.cpp'
  ]
  
-@@ -59,6 +60,16 @@ if get_option('oem-ibm').allowed()
+@@ -63,6 +64,16 @@ if get_option('oem-ibm').allowed()
    ]
  endif
  
@@ -517,7 +517,7 @@ index 0000000..780f0ef
 +
 +} // namespace pldm::responder::oem_meta
 diff --git a/pldmd/pldmd.cpp b/pldmd/pldmd.cpp
-index 1ed2043..aed5019 100644
+index a9e0103..26a99a5 100644
 --- a/pldmd/pldmd.cpp
 +++ b/pldmd/pldmd.cpp
 @@ -65,6 +65,10 @@ PHOSPHOR_LOG2_USING;
@@ -529,9 +529,9 @@ index 1ed2043..aed5019 100644
 +#endif
 +
  constexpr uint8_t MCTP_MSG_TYPE_PLDM = 1;
+ constexpr const char* PLDMService = "xyz.openbmc_project.PLDM";
  
- using namespace pldm;
-@@ -257,6 +261,12 @@ int main(int argc, char** argv)
+@@ -267,6 +271,12 @@ int main(int argc, char** argv)
              pldmTransport.getEventSource(), hostEID, instanceIdDb, &reqHandler);
      }
  

@@ -1,0 +1,47 @@
+From 39e7b32f16e3cd3a815c784fca91a3ab4f58654c Mon Sep 17 00:00:00 2001
+From: Patrick Williams <patrick@stwcx.xyz>
+Date: Tue, 16 Jul 2024 02:33:27 -0500
+Subject: [PATCH 14/40] sdbusplus: use shorter type aliases
+
+The sdbusplus headers provide shortened aliases for many types.
+Switch to using them to provide better code clarity and shorter
+lines.  Possible replacements are for:
+  * bus_t
+  * exception_t
+  * manager_t
+  * match_t
+  * message_t
+  * object_t
+  * slot_t
+
+Change-Id: I9be2bd75eae5c5098b6206b900b9956e764cf03a
+Signed-off-by: Patrick Williams <patrick@stwcx.xyz>
+---
+ oem/ibm/test/host_bmc_lamp_test.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/oem/ibm/test/host_bmc_lamp_test.cpp b/oem/ibm/test/host_bmc_lamp_test.cpp
+index 7d75649..26dc4fc 100644
+--- a/oem/ibm/test/host_bmc_lamp_test.cpp
++++ b/oem/ibm/test/host_bmc_lamp_test.cpp
+@@ -15,7 +15,7 @@ using ::testing::SetArgPointee;
+ class MockLampTest : public HostLampTest
+ {
+   public:
+-    MockLampTest(sdbusplus::bus::bus& bus, const std::string& objPath,
++    MockLampTest(sdbusplus::bus_t& bus, const std::string& objPath,
+                  uint8_t mctp_eid, pldm::InstanceIdDb& instanceIdDb,
+                  pldm_pdr* repo,
+                  pldm::requester::Handler<pldm::requester::Request>* handler) :
+@@ -29,7 +29,7 @@ class MockLampTest : public HostLampTest
+ 
+ TEST(TestLamp, Asserted)
+ {
+-    sdbusplus::bus::bus bus = sdbusplus::bus::new_default();
++    sdbusplus::bus_t bus = sdbusplus::bus::new_default();
+     TestInstanceIdDb instanceIdDb;
+ 
+     MockLampTest lampTest(bus, "/xyz/openbmc_project/led/groups/host_lamp_test",
+-- 
+2.25.1
+
