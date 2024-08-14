@@ -1,0 +1,83 @@
+From 71d6d5e79b4094fe3ab1a8ca603da5ac6b56cb50 Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Fri, 12 Jan 2024 11:39:27 +0800
+Subject: [PATCH 12/23] tests: add meson test target
+
+Add a bit of glue to allow testing via:
+
+    ninja -C obj test
+
+We use `pytest`'s TAP output to get full subtest reporting, so need the
+pytest-tap package.
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ README.md              | 15 +++++++++++----
+ meson.build            |  9 +++++++++
+ tests/requirements.txt |  1 +
+ 3 files changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/README.md b/README.md
+index 5a12219..2cf2f13 100644
+--- a/README.md
++++ b/README.md
+@@ -101,13 +101,19 @@ We have an initial test suite under tests/. To run:
+ 
+ ```sh
+ meson setup obj
+-ninja -C obj
++ninja -C obj test
++```
++
++Alternatively, you can run `pytest` directly; this may be more useful
++during development:
++
++```sh
+ cd obj
+ pytest
+ ```
+ 
+-This depends on a few python packages, including the pytest binary. You can
+-use a python `venv` to provide these:
++The test infrastructure depends on a few python packages, including the pytest
++binary. You can use a python `venv` to provide these:
+ 
+ ```sh
+ python3 -m venv venv
+@@ -117,5 +123,6 @@ venv/bin/pip install -r tests/requirements.txt
+ Then run the tests using the new `venv`'s `pytest`:
+ 
+ ```sh
+-../venv/bin/pytest
++PATH=$PWD/venv/bin/:$PATH meson setup obj
++ninja -C obj test
+ ```
+diff --git a/meson.build b/meson.build
+index e923fc3..02c714a 100644
+--- a/meson.build
++++ b/meson.build
+@@ -79,3 +79,12 @@ configure_file(
+     output: 'pytest.ini',
+     configuration: test_conf_data,
+ )
++
++pytest = find_program('pytest', required: false)
++
++if pytest.found()
++    test('test-mctpd', pytest,
++        args: '--tap',
++        protocol: 'tap',
++    )
++endif
+diff --git a/tests/requirements.txt b/tests/requirements.txt
+index 129d699..4fb34b5 100644
+--- a/tests/requirements.txt
++++ b/tests/requirements.txt
+@@ -3,3 +3,4 @@ pyroute2==0.7.10
+ pytest==7.4.3
+ pytest-trio==0.8.0
+ trio==0.23.2
++pytest-tap==3.4
+-- 
+2.25.1
+

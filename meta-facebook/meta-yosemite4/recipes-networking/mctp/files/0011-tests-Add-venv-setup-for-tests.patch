@@ -1,0 +1,48 @@
+From ba5573767cbc13baf57f4023aee7d070d6579e6d Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Fri, 5 Jan 2024 11:40:25 +0800
+Subject: [PATCH 11/23] tests: Add venv setup for tests
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ README.md              | 14 ++++++++++++++
+ tests/requirements.txt |  5 +++++
+ 2 files changed, 19 insertions(+)
+ create mode 100644 tests/requirements.txt
+
+diff --git a/README.md b/README.md
+index c1969d4..5a12219 100644
+--- a/README.md
++++ b/README.md
+@@ -105,3 +105,17 @@ ninja -C obj
+ cd obj
+ pytest
+ ```
++
++This depends on a few python packages, including the pytest binary. You can
++use a python `venv` to provide these:
++
++```sh
++python3 -m venv venv
++venv/bin/pip install -r tests/requirements.txt
++```
++
++Then run the tests using the new `venv`'s `pytest`:
++
++```sh
++../venv/bin/pytest
++```
+diff --git a/tests/requirements.txt b/tests/requirements.txt
+new file mode 100644
+index 0000000..129d699
+--- /dev/null
++++ b/tests/requirements.txt
+@@ -0,0 +1,5 @@
++asyncdbus==0.6.1
++pyroute2==0.7.10
++pytest==7.4.3
++pytest-trio==0.8.0
++trio==0.23.2
+-- 
+2.25.1
+

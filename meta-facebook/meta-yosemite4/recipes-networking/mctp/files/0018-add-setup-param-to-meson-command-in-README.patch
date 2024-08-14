@@ -1,0 +1,28 @@
+From 5600e0cfd54fa13bcd3738524092abea6c89c002 Mon Sep 17 00:00:00 2001
+From: Adam Young <ayoung@amperecomputing.com>
+Date: Mon, 22 Jan 2024 06:49:24 -0800
+Subject: [PATCH 18/23] add setup param to meson command in README
+
+calling meson without setup is deprecated and gives a warning
+
+Signed-off-by: Adam Young <ayoung@amperecomputing.com>
+---
+ README.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index 2cf2f13..89073c7 100644
+--- a/README.md
++++ b/README.md
+@@ -17,7 +17,7 @@ Building & installing
+ 
+ This project uses meson for building. To configure and compile:
+ 
+-    $ meson obj
++    $ meson setup obj
+     $ ninja -C obj
+ 
+ to install to the default prefix (/usr/local), with optional `DESTDIR`:
+-- 
+2.25.1
+

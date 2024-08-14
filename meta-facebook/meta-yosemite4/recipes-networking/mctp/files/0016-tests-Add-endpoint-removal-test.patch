@@ -1,0 +1,48 @@
+From bb01a40c9ce0f34820bd6e6132065200a9188b89 Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Mon, 15 Jan 2024 17:56:11 +0800
+Subject: [PATCH 16/23] tests: Add endpoint removal test
+
+Test that we can call Remove, and have the kernel neighbour tables
+updated.
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ tests/test_mctpd.py | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/tests/test_mctpd.py b/tests/test_mctpd.py
+index 4696b7b..ae212a5 100644
+--- a/tests/test_mctpd.py
++++ b/tests/test_mctpd.py
+@@ -1,7 +1,7 @@
+ 
+ import pytest
+ 
+-from mctp_test_utils import mctpd_mctp_obj
++from mctp_test_utils import mctpd_mctp_obj, mctpd_mctp_endpoint_obj
+ 
+ """ Test the SetupEndpoint dbus call
+ 
+@@ -64,3 +64,18 @@ async def test_setup_endpoint(dbus, mctpd):
+ 
+     # we should have a route for the new endpoint too
+     assert len(mctpd.system.routes) == 2
++
++""" Test neighbour removal """
++async def test_remove_endpoint(dbus, mctpd):
++    mctp = await mctpd_mctp_obj(dbus)
++
++    iface = mctpd.system.interfaces[0]
++    ep1 = mctpd.network.endpoints[0]
++    (_, _, path, _) = await mctp.call_setup_endpoint(iface.name, ep1.lladdr)
++
++    assert(len(mctpd.system.neighbours) == 1)
++
++    ep = await mctpd_mctp_endpoint_obj(dbus, path)
++
++    await ep.call_remove()
++    assert(len(mctpd.system.neighbours) == 0)
+-- 
+2.25.1
+

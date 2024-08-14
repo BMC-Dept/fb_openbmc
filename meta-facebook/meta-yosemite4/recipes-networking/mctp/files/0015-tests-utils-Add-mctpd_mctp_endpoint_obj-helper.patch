@@ -1,0 +1,31 @@
+From 0ed5c0394d6941f7ccd1d476b017dbc9db0d9a90 Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Mon, 15 Jan 2024 17:55:33 +0800
+Subject: [PATCH 15/23] tests/utils: Add mctpd_mctp_endpoint_obj helper
+
+Add a helper to retrieve the endpoint interface from a known object
+path.
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ tests/mctp_test_utils.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/tests/mctp_test_utils.py b/tests/mctp_test_utils.py
+index 73b29f0..ae48066 100644
+--- a/tests/mctp_test_utils.py
++++ b/tests/mctp_test_utils.py
+@@ -5,3 +5,10 @@ async def mctpd_mctp_obj(dbus):
+             '/xyz/openbmc_project/mctp'
+         )
+     return await obj.get_interface('au.com.CodeConstruct.MCTP')
++
++async def mctpd_mctp_endpoint_obj(dbus, path):
++    obj = await dbus.get_proxy_object(
++            'xyz.openbmc_project.MCTP',
++            path,
++        )
++    return await obj.get_interface('au.com.CodeConstruct.MCTP.Endpoint')
+-- 
+2.25.1
+

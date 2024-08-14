@@ -1,0 +1,171 @@
+From cb1761060277e9a4c5b5b5f26fcb3c18ee025e2b Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Mon, 27 Nov 2023 15:46:20 +0800
+Subject: [PATCH 19/23] mctpd: handle EEXIST outside of get_endpoint_peer
+
+get_endpoint_peer() may see an EEXIST while updating the local peer
+tables; this indicates there was a conflict between a queried EID (via
+Get Endpoint ID to the peer), and another entry in the peer table.
+
+We currently handle this by returning a dbus error directly from
+get_endpoint_peer(), but this is recoverable from a SetupEndpoint call,
+by assigning a new EID.
+
+Instead of returning the dbus error in get_endpoint_peer, leave the
+EXIST handling to the caller, where the behaviours are different:
+
+ - LearnEndpoint needs to propogate the error to the caller
+
+ - SetupEndpoint can attempt to assign a new EID
+
+Fixes: https://github.com/CodeConstruct/mctp/issues/19
+Reported-by: Muhammad Usama Chaudhry <chaudhryusama@gmail.com>
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ CHANGELOG.md        |  6 ++++++
+ src/mctpd.c         | 35 ++++++++++++++++++++++-------------
+ tests/test_mctpd.py | 24 ++++++++++++++++++++++++
+ 3 files changed, 52 insertions(+), 13 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 53de778..9459795 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -17,4 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ 1. dbus interface: the NetworkID field is now a `u` rather than an `i`, to
+    match OpenBMC's MCTP endpoint specification
+ 
++### Fixed
++
++1. mctpd: EID assignments now work in the case where a new endpoint has a
++   pre-configured EID that would conflict with other (already enumerated)
++   endpoints. The new endpoint will get a non-conflicting address assigned.
++
+ ## [1.1] - 2023-04-13
+diff --git a/src/mctpd.c b/src/mctpd.c
+index 3a19d9b..17a75d3 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -1501,7 +1501,7 @@ out:
+  * Returns negative error code on failure.
+  */
+ static int get_endpoint_peer(ctx *ctx, sd_bus_error *berr,
+-	const dest_phys *dest, peer **ret_peer)
++	const dest_phys *dest, peer **ret_peer, mctp_eid_t *ret_cur_eid)
+ {
+ 	mctp_eid_t eid;
+ 	uint8_t ep_type, medium_spec;
+@@ -1514,6 +1514,9 @@ static int get_endpoint_peer(ctx *ctx, sd_bus_error *berr,
+ 	if (rc < 0)
+ 		return rc;
+ 
++	if (ret_cur_eid)
++		*ret_cur_eid = eid;
++
+ 	net = mctp_nl_net_byindex(ctx->nl, dest->ifindex);
+ 	if (net < 1) {
+ 		return -EPROTO;
+@@ -1528,12 +1531,14 @@ static int get_endpoint_peer(ctx *ctx, sd_bus_error *berr,
+ 			return 0;
+ 		} else if (peer->eid != eid) {
+ 			rc = change_peer_eid(peer, eid);
+-			if (rc == -EEXIST)
+-				return sd_bus_error_setf(berr, SD_BUS_ERROR_FILE_EXISTS,
+-					"Endpoint previously EID %d claimed EID %d which is already used",
+-					peer->eid, eid);
+-			else if (rc < 0)
++			/* Conflict while changing EIDs: the new EID already
++			 * exists in our local table. We can only delete the
++			 * entry because it's no longer valid, and the caller
++			 * will handle the error */
++			if (rc < 0) {
++				remove_peer(peer);
+ 				return rc;
++			}
+ 		}
+ 	} else {
+ 		if (eid == 0) {
+@@ -1542,11 +1547,7 @@ static int get_endpoint_peer(ctx *ctx, sd_bus_error *berr,
+ 		}
+ 		/* New endpoint */
+ 		rc = add_peer(ctx, dest, eid, net, &peer);
+-		if (rc == -EEXIST)
+-			return sd_bus_error_setf(berr, SD_BUS_ERROR_FILE_EXISTS,
+-					"Endpoint claimed EID %d which is already used",
+-					eid);
+-		else if (rc < 0)
++		if (rc < 0)
+ 			return rc;
+ 	}
+ 
+@@ -1775,7 +1776,7 @@ static int method_setup_endpoint(sd_bus_message *call, void *data, sd_bus_error
+ 			"Bad physaddr");
+ 
+ 	/* Get Endpoint ID */
+-	rc = get_endpoint_peer(ctx, berr, dest, &peer);
++	rc = get_endpoint_peer(ctx, berr, dest, &peer, NULL);
+ 	if (rc >= 0 && peer) {
+ 		if (ctx->verbose)
+ 			fprintf(stderr, "%s returning from get_endpoint_peer %s",
+@@ -1874,6 +1875,7 @@ static int method_learn_endpoint(sd_bus_message *call, void *data, sd_bus_error
+ 	dest_phys desti, *dest = &desti;
+ 	ctx *ctx = data;
+ 	peer *peer = NULL;
++	mctp_eid_t eid = 0;
+ 
+ 	rc = sd_bus_message_read(call, "s", &ifname);
+ 	if (rc < 0)
+@@ -1893,7 +1895,14 @@ static int method_learn_endpoint(sd_bus_message *call, void *data, sd_bus_error
+ 		return sd_bus_error_setf(berr, SD_BUS_ERROR_INVALID_ARGS,
+ 			"Bad physaddr");
+ 
+-	rc = get_endpoint_peer(ctx, berr, dest, &peer);
++	rc = get_endpoint_peer(ctx, berr, dest, &peer, &eid);
++	if (rc == -EEXIST) {
++		/* We have a conflict with an existing endpoint, so can't
++		 * learn; recovery would requre a Set Endpoint ID. */
++		return sd_bus_error_setf(berr, SD_BUS_ERROR_FILE_EXISTS,
++					 "Endpoint claimed EID %d which is already used",
++					 eid);
++	}
+ 	if (rc < 0)
+ 		goto err;
+ 	if (!peer)
+diff --git a/tests/test_mctpd.py b/tests/test_mctpd.py
+index 6d5e4e5..88e6f6d 100644
+--- a/tests/test_mctpd.py
++++ b/tests/test_mctpd.py
+@@ -81,6 +81,30 @@ async def test_setup_endpoint(dbus, mctpd):
+     # we should have a route for the new endpoint too
+     assert len(mctpd.system.routes) == 2
+ 
++""" Test that we correctly handle address conflicts on EID assignment.
++
++We have the following scenario:
++
++ 1. A configured peer at physaddr 1, EID A, allocated by mctpd
++ 2. A non-configured peer at physaddr 2, somehow carrying a default EID also A
++ 3. Attempt to enumerate physaddr 2
++
++At (3), we should reconfigure the EID to B.
++"""
++async def test_setup_endpoint_conflict(dbus, mctpd):
++    mctp = await mctpd_mctp_obj(dbus)
++
++    iface = mctpd.system.interfaces[0]
++    ep1 = mctpd.network.endpoints[0]
++    (eid1, _, _, _) = await mctp.call_setup_endpoint(iface.name, ep1.lladdr)
++
++    # endpoint configured with eid1 already
++    ep2 = Endpoint(iface, bytes([0x1e]), eid=eid1)
++    mctpd.network.add_endpoint(ep2)
++
++    (eid2, _, _, _) = await mctp.call_setup_endpoint(iface.name, ep2.lladdr)
++    assert eid1 != eid2
++
+ """ Test neighbour removal """
+ async def test_remove_endpoint(dbus, mctpd):
+     mctp = await mctpd_mctp_obj(dbus)
+-- 
+2.25.1
+

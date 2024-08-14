@@ -1,7 +1,7 @@
 From 8c905939ac1663e5b6ed9388560115cdd90dcc30 Mon Sep 17 00:00:00 2001
 From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
 Date: Thu, 26 Oct 2023 09:51:51 +0800
-Subject: [PATCH] mctpd: Change the type of NetworkId to uint32
+Subject: [PATCH 01/23] mctpd: Change the type of NetworkId to uint32
 
 Change the type of NetworkId to be a uint32 (dbus type 'u') to follow
 the definition of MCTP/Endpoint.interface in phosphor-dbus-interfaces.

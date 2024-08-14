@@ -1,0 +1,46 @@
+From ea5c9a32a875cdbf8a8cb4cf8857689aa0a6146b Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Wed, 20 Dec 2023 16:34:50 +0800
+Subject: [PATCH 09/23] mctpd: Exit on control socket EOF
+
+If we hit an EOF on the control socket, we'll keep getting
+cb_listen_control_message() invoked in a loop, as there will always be a
+POLLIN|POLLERR event pending.
+
+Instead, just exit here.
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ src/mctp.c  | 1 +
+ src/mctpd.c | 3 +++
+ 2 files changed, 4 insertions(+)
+
+diff --git a/src/mctp.c b/src/mctp.c
+index 0dd13b3..c136e21 100644
+--- a/src/mctp.c
++++ b/src/mctp.c
+@@ -1309,6 +1309,7 @@ int main(int argc, char **argv)
+ 	if (!cmd)
+ 		errx(EXIT_FAILURE, "no such command '%s'", cmdname);
+ 
++	mctp_ops_init();
+ 	ctx->nl = mctp_nl_new(ctx->verbose);
+ 	if (!ctx->nl)
+ 		errx(EXIT_FAILURE, "Error creating netlink object");
+diff --git a/src/mctpd.c b/src/mctpd.c
+index 9b30e1c..eadd354 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -720,6 +720,9 @@ static int cb_listen_control_msg(sd_event_source *s, int sd, uint32_t revents,
+ 	if (rc < 0)
+ 		goto out;
+ 
++	if (rc == 0)
++		errx(EXIT_FAILURE, "Control socket returned EOF");
++
+ 	if (addr.smctp_base.smctp_type != MCTP_CTRL_HDR_MSG_TYPE) {
+ 		warnx("BUG: Wrong message type for listen socket");
+ 		rc = -EINVAL;
+-- 
+2.25.1
+

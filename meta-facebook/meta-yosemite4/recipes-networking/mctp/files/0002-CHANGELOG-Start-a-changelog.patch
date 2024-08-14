@@ -1,0 +1,34 @@
+From 6aa4b052d1cff40148a3714d713849f37352e166 Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Tue, 28 Nov 2023 15:11:32 +0800
+Subject: [PATCH 02/23] CHANGELOG: Start a changelog
+
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+---
+ CHANGELOG.md | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+ create mode 100644 CHANGELOG.md
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..7557b78
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,14 @@
++# Changelog
++
++All notable changes to this project will be documented in this file.
++
++The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
++
++## Unreleased
++
++### Changed
++
++1. dbus interface: the NetworkID field is now a `u` rather than an `i`, to
++   match OpenBMC's MCTP endpoint specification
++
++## [1.1] - 2023-04-13
+-- 
+2.25.1
+

@@ -1,0 +1,79 @@
+From 3a75f27e94ecbb8ca43c18160a7df5590ccbb3e0 Mon Sep 17 00:00:00 2001
+From: Andrew Jeffery <andrew@codeconstruct.com.au>
+Date: Fri, 12 Jan 2024 09:30:20 +1030
+Subject: [PATCH 06/23] mctpd: Fix resource handling over recovery of exchanged
+ peer devices
+
+A fundamental flaw merged in 7ec2f8daa3a8 ("mctpd: Add support for
+endpoint recovery") was that NULL was passed for the peer parameter in
+the call to endpoint_assign_eid(). I had intended to circle back to
+that, but it clearly got overlooked in testing and review.
+
+While this caused an obvious crash when the path was hit, the subsequent
+resource cleanup was also in error: As the original peer has been
+removed there's no need for the remaining state maintenance executed in
+the original flow. Instead, immediately return with the result of
+endpoint_assign_eid() against the new peer device.
+
+Fixes: 7ec2f8daa3a8 ("mctpd: Add support for endpoint recovery")
+Signed-off-by: Andrew Jeffery <andrew@codeconstruct.com.au>
+---
+ src/mctpd.c | 36 +++++++++++++++++++-----------------
+ 1 file changed, 19 insertions(+), 17 deletions(-)
+
+diff --git a/src/mctpd.c b/src/mctpd.c
+index c7338b2..b5f7835 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -2303,29 +2303,31 @@ peer_endpoint_recover(sd_event_source *s, uint64_t usec, void *userdata)
+ 		uuid_matches_peer = memcmp(uuid, peer->uuid, sizeof(uuid)) == 0;
+ 		uuid_matches_nil = memcmp(uuid, nil_uuid, sizeof(uuid)) == 0;
+ 
+-		if (rc == 0 && uuid_matches_peer &&
+-		    (!uuid_matches_nil || MCTPD_RECOVER_NIL_UUID)) {
+-			/* Confirmation of the same device, apply it's already allocated EID */
+-			rc = endpoint_send_set_endpoint_id(peer, &new_eid);
+-			if (rc < 0) {
+-				goto reschedule;
+-			}
+-
+-			if (new_eid != peer->eid) {
+-				rc = change_peer_eid(peer, new_eid);
+-				if (rc < 0) {
+-					goto reclaim;
+-				}
+-			}
+-		} else {
++		if (rc || !uuid_matches_peer ||
++				(uuid_matches_nil && !MCTPD_RECOVER_NIL_UUID)) {
+ 			/* It's not known to be the same device, allocate a new EID */
+ 			dest_phys phys = peer->phys;
+ 
+ 			assert(sd_event_source_get_enabled(peer->recovery.source, &ev_state) == 0);
+ 			remove_peer(peer);
+-			rc = endpoint_assign_eid(ctx, NULL, &phys, NULL);
++			/*
++			 * The representation of the old peer is now gone. Set up the new peer,
++			 * after which we immediately return as there's no old peer state left to
++			 * maintain.
++			 */
++			return endpoint_assign_eid(ctx, NULL, &phys, &peer);
++		}
++
++		/* Confirmation of the same device, apply its already allocated EID */
++		rc = endpoint_send_set_endpoint_id(peer, &new_eid);
++		if (rc < 0) {
++			goto reschedule;
++		}
++
++		if (new_eid != peer->eid) {
++			rc = change_peer_eid(peer, new_eid);
+ 			if (rc < 0) {
+-				goto reschedule;
++				goto reclaim;
+ 			}
+ 		}
+ 	}
+-- 
+2.25.1
+

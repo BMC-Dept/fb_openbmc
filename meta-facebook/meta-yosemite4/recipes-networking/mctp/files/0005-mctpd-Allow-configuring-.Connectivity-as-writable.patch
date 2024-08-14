@@ -1,0 +1,132 @@
+From 858d20362329069ec29dc39011f8b960ed56f8ba Mon Sep 17 00:00:00 2001
+From: Andrew Jeffery <andrew@codeconstruct.com.au>
+Date: Thu, 21 Dec 2023 12:06:53 +1030
+Subject: [PATCH 05/23] mctpd: Allow configuring .Connectivity as writable
+
+Add an `unsafe-writable-connectivity` option allowing manual simulation
+of an endpoint being recovered. This can be used to drive the state
+machine of client applications reacting to changes in endpoint state for
+the purpose of test and validation.
+
+Signed-off-by: Andrew Jeffery <andrew@codeconstruct.com.au>
+---
+ CHANGELOG.md      |  1 +
+ meson.build       |  3 +++
+ meson_options.txt |  4 ++++
+ src/mctpd.c       | 52 +++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 60 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 68dcd7f..53de778 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ 
+ 1. mctpd: Add support for endpoint recovery
+ 2. mctpd: Allow recovery of devices reporting a nil UUID for development
++3. mctpd: Allow configuring .Connectivity as writable for development
+ 
+ ### Changed
+ 
+diff --git a/meson.build b/meson.build
+index 3f458c6..d52f2a5 100644
+--- a/meson.build
++++ b/meson.build
+@@ -24,6 +24,9 @@ conf.set10('MCTPD_RECOVER_NIL_UUID',
+     get_option('unsafe-recover-nil-uuid'),
+     description: 'Consider a nil UUID to be valid for endpoint recovery purposes',
+ )
++conf.set10('MCTPD_WRITABLE_CONNECTIVITY',
++    get_option('unsafe-writable-connectivity'),
++    description: 'Allow writes to the Connectivity member of the au.com.CodeConstruct.MCTP.Endpoint interface on endpoint objects')
+ 
+ config_h = configure_file(
+     output: 'config.h',
+diff --git a/meson_options.txt b/meson_options.txt
+index 6225640..57c4e80 100644
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -1 +1,5 @@
+ option('unsafe-recover-nil-uuid', type: 'boolean', value: false)
++option('unsafe-writable-connectivity',
++       type: 'boolean',
++       value: false,
++       description: 'Allow writes to the Connectivity member of the au.com.CodeConstruct.MCTP.Endpoint interface on endpoint objects')
+diff --git a/src/mctpd.c b/src/mctpd.c
+index fad8eb9..c7338b2 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -2614,6 +2614,49 @@ static int bus_endpoint_get_prop(sd_bus *bus,
+ 	return rc;
+ }
+ 
++__attribute__((unused))
++static int bus_endpoint_set_prop(sd_bus *bus, const char *path,
++                                 const char *interface,
++                                 const char *property,
++                                 sd_bus_message *value,
++                                 void *userdata,
++                                 sd_bus_error *ret_error)
++{
++	const char *connectivity;
++	peer *peer = userdata;
++	ctx *ctx = peer->ctx;
++	int rc;
++
++	if (strcmp(property, "Connectivity") == 0) {
++		bool previously = peer->degraded;
++		rc = sd_bus_message_read(value, "s", &connectivity);
++		if (rc < 0) {
++			goto out;
++		}
++		if (strcmp(connectivity, "Available") == 0) {
++			peer->degraded = false;
++		} else if (strcmp(connectivity, "Degraded") == 0) {
++			peer->degraded = true;
++		} else {
++			printf("Invalid property value '%s' for property '%s' from interface '%s' on object '%s'\n",
++				connectivity, property, interface, path);
++			rc = -EINVAL;
++			goto out;
++		}
++		if (previously != peer->degraded)
++		{
++			rc = sd_bus_emit_properties_changed(bus, path, interface, "Connectivity", NULL);
++		}
++	} else {
++		printf("Unknown property '%s' in interface '%s' on object '%s'\n", property,
++			interface, path);
++		rc = -ENOENT;
++	}
++out:
++	set_berr(ctx, rc, ret_error);
++	return rc;
++}
++
+ static const sd_bus_vtable bus_endpoint_vtable[] = {
+ 	SD_BUS_VTABLE_START(0),
+ 	SD_BUS_PROPERTY("NetworkId",
+@@ -2661,11 +2704,20 @@ static const sd_bus_vtable bus_endpoint_cc_vtable[] = {
+ 		SD_BUS_NO_RESULT,
+ 		method_endpoint_recover,
+ 		0),
++#if MCTPD_WRITABLE_CONNECTIVITY
++	SD_BUS_WRITABLE_PROPERTY("Connectivity",
++		"s",
++		bus_endpoint_get_prop,
++		bus_endpoint_set_prop,
++		0,
++		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
++#else
+ 	SD_BUS_PROPERTY("Connectivity",
+ 		"s",
+ 		bus_endpoint_get_prop,
+ 		0,
+ 		SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
++#endif
+ 	SD_BUS_VTABLE_END
+ };
+ 
+-- 
+2.25.1
+

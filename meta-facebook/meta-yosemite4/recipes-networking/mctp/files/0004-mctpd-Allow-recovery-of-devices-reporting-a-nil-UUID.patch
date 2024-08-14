@@ -1,0 +1,77 @@
+From 23ee5fbfb1dcf5908d101d963ee1251ecc1ef642 Mon Sep 17 00:00:00 2001
+From: Andrew Jeffery <andrew@codeconstruct.com.au>
+Date: Thu, 21 Dec 2023 11:49:26 +1030
+Subject: [PATCH 04/23] mctpd: Allow recovery of devices reporting a nil UUID
+
+This is helpful for testing purposes. It is disabled by default and
+should not be enabled in production environments.
+
+Signed-off-by: Andrew Jeffery <andrew@codeconstruct.com.au>
+---
+ CHANGELOG.md      | 1 +
+ meson.build       | 4 ++++
+ meson_options.txt | 1 +
+ src/mctpd.c       | 5 ++++-
+ 4 files changed, 10 insertions(+), 1 deletion(-)
+ create mode 100644 meson_options.txt
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3220d01..68dcd7f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+ ### Added
+ 
+ 1. mctpd: Add support for endpoint recovery
++2. mctpd: Allow recovery of devices reporting a nil UUID for development
+ 
+ ### Changed
+ 
+diff --git a/meson.build b/meson.build
+index 7d605cb..3f458c6 100644
+--- a/meson.build
++++ b/meson.build
+@@ -20,6 +20,10 @@ conf.set10('HAVE_LINUX_MCTP_H',
+     cc.has_header('linux/mctp.h'),
+     description: 'Is linux/mctp.h available?'
+ )
++conf.set10('MCTPD_RECOVER_NIL_UUID',
++    get_option('unsafe-recover-nil-uuid'),
++    description: 'Consider a nil UUID to be valid for endpoint recovery purposes',
++)
+ 
+ config_h = configure_file(
+     output: 'config.h',
+diff --git a/meson_options.txt b/meson_options.txt
+new file mode 100644
+index 0000000..6225640
+--- /dev/null
++++ b/meson_options.txt
+@@ -0,0 +1 @@
++option('unsafe-recover-nil-uuid', type: 'boolean', value: false)
+diff --git a/src/mctpd.c b/src/mctpd.c
+index 724c10d..fad8eb9 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -6,6 +6,8 @@
+  * Copyright (c) 2021 Google
+  */
+ 
++#include "config.h"
++
+ #include <assert.h>
+ #include <bits/time.h>
+ #include <systemd/sd-bus-vtable.h>
+@@ -2301,7 +2303,8 @@ peer_endpoint_recover(sd_event_source *s, uint64_t usec, void *userdata)
+ 		uuid_matches_peer = memcmp(uuid, peer->uuid, sizeof(uuid)) == 0;
+ 		uuid_matches_nil = memcmp(uuid, nil_uuid, sizeof(uuid)) == 0;
+ 
+-		if (rc == 0 && !uuid_matches_nil && uuid_matches_peer) {
++		if (rc == 0 && uuid_matches_peer &&
++		    (!uuid_matches_nil || MCTPD_RECOVER_NIL_UUID)) {
+ 			/* Confirmation of the same device, apply it's already allocated EID */
+ 			rc = endpoint_send_set_endpoint_id(peer, &new_eid);
+ 			if (rc < 0) {
+-- 
+2.25.1
+

@@ -1,0 +1,142 @@
+From 345c8cd35a20151a03c7c2b065feb41d977d957c Mon Sep 17 00:00:00 2001
+From: Andrew Jeffery <andrew@codeconstruct.com.au>
+Date: Mon, 15 Jan 2024 09:48:55 +1030
+Subject: [PATCH 13/23] mctpd: Handle SIGTERM to enable test coverage reports
+
+`PATH=$PWD/venv/bin/:$PATH meson setup -Db_coverage=true build` yields a
+build that passes `meson test -C build` yet cannot successfully generate
+a test coverage report:
+
+```
+$ meson test -C build
+ninja: Entering directory `./build'
+[21/21] Linking target test-mctpd
+1/1 test-mctpd        OK              0.28s   1 subtests passed
+
+Ok:                 1
+Expected Fail:      0
+Fail:               0
+Unexpected Pass:    0
+Skipped:            0
+Timeout:            0
+
+Full log written to ./build/meson-logs/testlog.txt
+```
+
+```
+$ ninja -C build coverage-html
+ninja: Entering directory `build'
+[1/1] Generates HTML coverage report
+FAILED: meson-internal__coverage-html
+/home/andrew/.local/bin/meson --internal coverage --html . ./subprojects ./build ./build/meson-logs
+Debian LLVM version 14.0.6
+  Optimized build.
+  Default target: x86_64-pc-linux-gnu
+  Host CPU: goldmont
+genhtml: LCOV version 1.16
+...
+Scanning ./build for .gcda files ...
+geninfo: WARNING: no .gcda files found in ./build - skipping!
+Finished .info-file creation
+lcov: ERROR: no valid records found in tracefile ./build/meson-logs/coverage.info.run
+Combining tracefiles.
+Reading tracefile ./build/meson-logs/coverage.info.initial
+Reading tracefile ./build/meson-logs/coverage.info.run
+Traceback (most recent call last):
+  File "/home/andrew/.local/bin/meson", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/lib/python3.11/site-packages/mesonbuild/mesonmain.py", line 294, in main
+    return run(sys.argv[1:], launcher)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lib/python3.11/site-packages/mesonbuild/mesonmain.py", line 282, in run
+    return run_script_command(args[1], args[2:])
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lib/python3.11/site-packages/mesonbuild/mesonmain.py", line 223, in run_script_command
+    return module.run(script_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lib/python3.11/site-packages/mesonbuild/scripts/coverage.py", line 205, in run
+    return coverage(options.outputs, options.source_root,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/lib/python3.11/site-packages/mesonbuild/scripts/coverage.py", line 132, in coverage
+    subprocess.check_call([lcov_exe,
+  File "/usr/lib/python3.11/subprocess.py", line 413, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['lcov', '-a', './build/meson-logs/coverage.info.initial', '-a', './build/meson-logs/coverage.info.run', '--rc', 'lcov_branch_coverage=1', '-o', './build/meson-logs/coverage.info.raw']' returned non-zero exit status 255.
+ninja: build stopped: subcommand failed.
+```
+
+The insightful observation here was that running `./build/test-mctpd`
+*did* generate `.gcda` files as expected, event if the invocation
+terminated early before doing anything interesting (due to the lack of
+`MCTP_TEST_SOCK`).
+
+`strace`ing out `meson test -C build` confirmed no gcda files were
+written, and demonstrated that exit of test-mctpd was triggered from
+pytest with `kill -SIGTERM ...`.
+
+Add a SIGTERM handler such that we return from `sd_event_loop()` on
+SIGTERM, yielding a graceful process exit by returning from main(),
+which in-turns writes out the gcda files required for coverage
+reporting.
+
+Signed-off-by: Andrew Jeffery <andrew@codeconstruct.com.au>
+---
+ src/mctpd.c | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/src/mctpd.c b/src/mctpd.c
+index eadd354..3a19d9b 100644
+--- a/src/mctpd.c
++++ b/src/mctpd.c
+@@ -23,6 +23,7 @@
+ #include <err.h>
+ #include <errno.h>
+ #include <getopt.h>
++#include <signal.h>
+ 
+ #include <systemd/sd-event.h>
+ #include <systemd/sd-bus.h>
+@@ -2919,6 +2920,7 @@ out:
+ 
+ static int setup_bus(ctx *ctx)
+ {
++	sigset_t sigset;
+ 	int rc;
+ 
+ 	// Must use the default loop so that dfree() can use it without context.
+@@ -2928,6 +2930,23 @@ static int setup_bus(ctx *ctx)
+ 		goto out;
+ 	}
+ 
++	rc = sigemptyset(&sigset);
++	if (rc < 0)
++		goto out;
++
++	rc = sigaddset(&sigset, SIGTERM);
++	if (rc < 0)
++		goto out;
++
++	rc = sigprocmask(SIG_BLOCK, &sigset, NULL);
++	if (rc < 0)
++		goto out;
++
++	rc = sd_event_add_signal(ctx->event, NULL, SIGTERM, NULL, NULL);
++	if (rc < 0) {
++		goto out;
++	}
++
+ 	rc = sd_bus_default(&ctx->bus);
+ 	if (rc < 0) {
+ 		warnx("Couldn't connect to D-Bus");
+@@ -3544,7 +3563,6 @@ int main(int argc, char **argv)
+ 	if (rc < 0)
+ 		return 1;
+ 
+-
+ 	rc = sd_event_loop(ctx->event);
+ 	sd_event_unref(ctx->event);
+ 	if (rc < 0) {
+-- 
+2.25.1
+
