@@ -1,7 +1,7 @@
-From 91595927b083f092bff35514de70776093df2f4f Mon Sep 17 00:00:00 2001
+From e94a5a6789b79db47e5f41eca5e7ce3829f9c400 Mon Sep 17 00:00:00 2001
 From: Marshall Zhan <marshall.zhan.wiwynn@gmail.com>
 Date: Wed, 7 Aug 2024 11:13:56 +0800
-Subject: [PATCH] meta-facebook: yosemite4: Adjust sled cycle method
+Subject: [PATCH 1/5] meta-facebook: yosemite4: Adjust sled cycle method
 
 Use FRU information to distinguish different sled cycle methods.
 

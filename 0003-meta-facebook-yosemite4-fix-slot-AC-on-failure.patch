@@ -1,0 +1,80 @@
+From 7277015fce47a9200481565c427d627a1e277273 Mon Sep 17 00:00:00 2001
+From: Jerry C Chen <jerry.c.chen.wiwynn@gmail.com>
+Date: Tue, 30 Jul 2024 15:45:44 +0800
+Subject: [PATCH 3/5] meta-facebook: yosemite4: fix slot AC on failure
+
+Since CPLD will stagger each slot AC on operation, getting AC status
+without delay might result in AC on operation failure.
+
+Change-Id: I2920fba84a5c3ff03037d2411614ccf488b2f266
+Signed-off-by: Jerry C Chen <jerry.c.chen.wiwynn@gmail.com>
+---
+ .../phosphor-state-manager/chassis-powercycle |  2 +-
+ .../phosphor-state-manager/chassis-poweron    |  2 +-
+ .../state/phosphor-state-manager/power-cmd    | 27 +++++++++++++++++++
+ 3 files changed, 29 insertions(+), 2 deletions(-)
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+index 75c28a364e6..e18c023f3e6 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+@@ -48,7 +48,7 @@ chassis-power-cycle()
+         sleep 2
+ 
+         # Check chassis status after doing 12V cycle
+-        chassis_status=$(gpio_get "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_STATUS")
++        chassis_status=$(get_ac_on_status "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_STATUS")
+         if [ "$chassis_status" == "$STATE_ON" ]
+         then
+             busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_ON_PROPERTY"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-poweron b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-poweron
+index fd9860c9c5b..9ffd2406182 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-poweron
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-poweron
+@@ -24,7 +24,7 @@ chassis-power-on()
+     sleep 1
+ 
+     # Check chassis status after doing 12V on
+-    chassis_status=$(gpio_get "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_STATUS")
++    chassis_status=$(get_ac_on_status "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_STATUS")
+     if [ "$chassis_status" == "$STATE_ON" ]
+     then
+         busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_ON_PROPERTY"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
+index 2ac98c4d379..c20fa34325e 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
+@@ -44,3 +44,30 @@ gpio_set()
+   done
+   echo "gpioset failed"
+ }
++
++add_sel()
++{
++  MESSAGE="$*"
++
++  busctl call \
++    xyz.openbmc_project.Logging /xyz/openbmc_project/logging \
++    xyz.openbmc_project.Logging.Create Create "ssa{ss}" "$MESSAGE" \
++    xyz.openbmc_project.Logging.Entry.Level.Error 0
++}
++
++get_ac_on_status()
++{
++  RETRY=20
++  while [ $RETRY -gt 0 ]
++  do
++    if [ "$(gpio_get "$1" "$2")" == "$STATE_ON" ]
++    then
++      echo "$STATE_ON"
++      return 0
++    fi
++    RETRY=$((RETRY-1))
++    sleep 1
++  done
++  echo "$STATE_OFF"
++}
++
+-- 
+2.25.1
+
