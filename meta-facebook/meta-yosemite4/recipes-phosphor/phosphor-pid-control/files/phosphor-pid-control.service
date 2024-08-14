@@ -1,0 +1,15 @@
+[Unit]
+Description=Phosphor-Pid-Control Margin-based Fan Control Daemon
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Restart=always
+ExecStart=@BINDIR@/swampd
+ExecReload=/bin/kill -HUP $MAINPID
+RestartSec=5
+StartLimitInterval=0
+Type=simple
+
+[Install]
+WantedBy=@SYSTEMD_TARGET@

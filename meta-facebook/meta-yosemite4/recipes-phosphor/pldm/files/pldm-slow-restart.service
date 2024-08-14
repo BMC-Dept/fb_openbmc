@@ -1,0 +1,11 @@
+[Unit]
+Description=PLDM slow restart service - this is a backup solution
+Wants=pldmd.service
+After=pldmd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/pldm/pldm-restart.sh
+
+[Install]
+WantedBy=multi-user.target
