@@ -27,5 +27,7 @@ SRC_URI += " \
     file://0527-Add-XDP710-in-yosemite4-dts.patch \
     file://0528-ARM-dts-aspeed-yosemite4-add-RTQ6056-support.patch \
     file://0529-net-mctp-i2c-invalidate-flows-immediately-on-TX-erro.patch \
-    file://0530-ARM-dts-aspeed-yosemite4-adjust-mgm-cpld-ioexp.patch \
+    file://0530-meta-facebook-yosemite4-update-dts-file-to-enable-mp.patch \
+    file://0531-ARM-dts-aspeed-yosemite4-adjust-mgm-cpld-ioexp.patch \
+    file://0532-ARM-dts-aspeed-yosemite4-remove-mctp-driver-on-bus-1.patch \
 "
