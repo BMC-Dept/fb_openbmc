@@ -1,0 +1,58 @@
+From 6e5c05fb5b2664bd54ac5d22a950120168ad182a Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Wed, 31 Jul 2024 14:49:42 +0800
+Subject: [PATCH 15/22] configurations: yosemite4: Include board info into
+ Decorator.Asset
+
+To include board info in Decorator.Asset instead of product info.
+Test case: board info can be read via entity manager service.
+
+Change-Id: Ia9dc27ed9939acea15d325726fbaaafe7ae4b955
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ configurations/yosemite4_fanboard_fsc_nct_adc_max.json   | 8 ++++----
+ ...semite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json | 9 +++++----
+ 2 files changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/configurations/yosemite4_fanboard_fsc_nct_adc_max.json b/configurations/yosemite4_fanboard_fsc_nct_adc_max.json
+index 2261814..4b8bf23 100644
+--- a/configurations/yosemite4_fanboard_fsc_nct_adc_max.json
++++ b/configurations/yosemite4_fanboard_fsc_nct_adc_max.json
+@@ -688,10 +688,10 @@
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+         "BuildDate": "$BOARD_MANUFACTURE_DATE",
+-        "Manufacturer": "$PRODUCT_MANUFACTURER",
+-        "Model": "$PRODUCT_PRODUCT_NAME",
+-        "PartNumber": "$PRODUCT_PART_NUMBER",
+-        "SerialNumber": "$PRODUCT_SERIAL_NUMBER",
++        "Manufacturer": "$BOARD_MANUFACTURER",
++        "Model": "$BOARD_PRODUCT_NAME",
++        "PartNumber": "$BOARD_PART_NUMBER",
++        "SerialNumber": "$BOARD_SERIAL_NUMBER",
+         "SparePartNumber": "$BOARD_INFO_AM1"
+     },
+     "xyz.openbmc_project.Inventory.Decorator.AssetTag": {
+diff --git a/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
+index e67de1e..648a96f 100644
+--- a/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
++++ b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
+@@ -2411,10 +2411,11 @@
+     "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-TI 12VHSC-MPS 48VHSC-INF', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+-        "Manufacturer": "$PRODUCT_MANUFACTURER",
+-        "Model": "$PRODUCT_PRODUCT_NAME",
+-        "PartNumber": "$PRODUCT_PART_NUMBER",
+-        "SerialNumber": "$PRODUCT_SERIAL_NUMBER",
++        "BuildDate": "$BOARD_MANUFACTURE_DATE",
++        "Manufacturer": "$BOARD_MANUFACTURER",
++        "Model": "$BOARD_PRODUCT_NAME",
++        "PartNumber": "$BOARD_PART_NUMBER",
++        "SerialNumber": "$BOARD_SERIAL_NUMBER",
+         "SparePartNumber": "$BOARD_INFO_AM1"
+     },
+     "xyz.openbmc_project.Inventory.Decorator.AssetTag": {
+-- 
+2.25.1
+

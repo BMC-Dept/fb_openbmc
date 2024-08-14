@@ -1,0 +1,270 @@
+From 1964e763f35e63e4858ff93f81d62b97be363aa1 Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Wed, 31 Jul 2024 10:12:42 +0800
+Subject: [PATCH 18/22] configurations: yosemite4: distinguish sensor naming
+ for virtual sensor
+
+The formulas of sensor calibration are different for each component.
+Distinguish the sensor name so that virtual sensors can apply different
+calibrated formulas for them. Otherwise, virtual sensor services can not
+determine which formula is going to apply.
+Test Case: Entity manager can load the config and sensors can be read.
+
+Change-Id: If2d1cbd0447ab83a353cec9c1faaeca17cd036ef
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ ...usaboard_adc_ti_12vhsc_mps_48vhsc_inf.json | 40 +++++++++----------
+ .../yosemite4_medusaboard_adc_ti_hsc_adi.json | 40 +++++++++----------
+ 2 files changed, 40 insertions(+), 40 deletions(-)
+
+diff --git a/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
+index 648a96f..a1c9c33 100644
+--- a/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
++++ b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json
+@@ -364,9 +364,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB1_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB1_12VHSC_INPUT_VOLT_V",
+@@ -519,9 +519,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB2_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB2_12VHSC_INPUT_VOLT_V",
+@@ -674,9 +674,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB3_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB3_12VHSC_INPUT_VOLT_V",
+@@ -829,9 +829,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB4_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB4_12VHSC_INPUT_VOLT_V",
+@@ -984,9 +984,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB5_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB5_12VHSC_INPUT_VOLT_V",
+@@ -1139,9 +1139,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB6_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB6_12VHSC_INPUT_VOLT_V",
+@@ -1294,9 +1294,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB7_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB7_12VHSC_INPUT_VOLT_V",
+@@ -1449,9 +1449,9 @@
+                 }
+             ],
+             "Type": "MP5990",
+-            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A_2",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W_2",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB8_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB8_12VHSC_INPUT_VOLT_V",
+@@ -1723,9 +1723,9 @@
+                 }
+             ],
+             "Type": "XDP710",
+-            "iout1_Name": "MEDUSA_48VHSC0_CURR_A",
++            "iout1_Name": "MEDUSA_48VHSC0_CURR_A_2",
+             "iout1_Scale": 250,
+-            "pin_Name": "MEDUSA_48VHSC0_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_48VHSC0_INPUT_PWR_W_2",
+             "pin_Scale": 250000,
+             "temp1_Name": "MEDUSA_48VHSC0_TEMP_C",
+             "vin_Name": "MEDUSA_48VHSC0_INPUT_VOLT_V",
+@@ -1878,9 +1878,9 @@
+                 }
+             ],
+             "Type": "XDP710",
+-            "iout1_Name": "MEDUSA_48VHSC1_CURR_A",
++            "iout1_Name": "MEDUSA_48VHSC1_CURR_A_2",
+             "iout1_Scale": 250,
+-            "pin_Name": "MEDUSA_48VHSC1_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_48VHSC1_INPUT_PWR_W_2",
+             "pin_Scale": 250000,
+             "temp1_Name": "MEDUSA_48VHSC1_TEMP_C",
+             "vin_Name": "MEDUSA_48VHSC1_INPUT_VOLT_V",
+diff --git a/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+index 42f8e4f..b12a4c5 100644
+--- a/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
++++ b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+@@ -147,9 +147,9 @@
+                 }
+             ],
+             "Type": "ADM1272",
+-            "iout1_Name": "MEDUSA_48VHSC0_CURR_A",
++            "iout1_Name": "MEDUSA_48VHSC0_CURR_A_1",
+             "iout1_Scale": 250,
+-            "pin_Name": "MEDUSA_48VHSC0_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_48VHSC0_INPUT_PWR_W_1",
+             "pin_Scale": 250000,
+             "temp1_Name": "MEDUSA_48VHSC0_TEMP_C",
+             "vin_Name": "MEDUSA_48VHSC0_INPUT_VOLT_V",
+@@ -302,9 +302,9 @@
+                 }
+             ],
+             "Type": "ADM1272",
+-            "iout1_Name": "MEDUSA_48VHSC1_CURR_A",
++            "iout1_Name": "MEDUSA_48VHSC1_CURR_A_1",
+             "iout1_Scale": 250,
+-            "pin_Name": "MEDUSA_48VHSC1_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_48VHSC1_INPUT_PWR_W_1",
+             "pin_Scale": 250000,
+             "temp1_Name": "MEDUSA_48VHSC1_TEMP_C",
+             "vin_Name": "MEDUSA_48VHSC1_INPUT_VOLT_V",
+@@ -457,9 +457,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB1_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB1_12VHSC_INPUT_VOLT_V",
+@@ -612,9 +612,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB2_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB2_12VHSC_INPUT_VOLT_V",
+@@ -767,9 +767,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB3_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB3_12VHSC_INPUT_VOLT_V",
+@@ -922,9 +922,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB4_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB4_12VHSC_INPUT_VOLT_V",
+@@ -1077,9 +1077,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB5_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB5_12VHSC_INPUT_VOLT_V",
+@@ -1232,9 +1232,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB6_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB6_12VHSC_INPUT_VOLT_V",
+@@ -1387,9 +1387,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB7_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB7_12VHSC_INPUT_VOLT_V",
+@@ -1542,9 +1542,9 @@
+                 }
+             ],
+             "Type": "ADM1281",
+-            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A",
++            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A_1",
+             "iout1_Scale": 500,
+-            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W",
++            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W_1",
+             "pin_Scale": 500000,
+             "temp1_Name": "MEDUSA_MB8_12VHSC_TEMP_C",
+             "vin_Name": "MEDUSA_MB8_12VHSC_INPUT_VOLT_V",
+-- 
+2.25.1
+

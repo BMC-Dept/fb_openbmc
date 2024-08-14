@@ -1,0 +1,39 @@
+From 4771c8f201e565725e3dda000aec966e0ad84e5b Mon Sep 17 00:00:00 2001
+From: Patrick Williams <patrick@stwcx.xyz>
+Date: Wed, 31 Jul 2024 21:32:34 -0500
+Subject: [PATCH 14/22] configs: terminus: reduce capitalization
+
+The NIC name is "Terminus" and not an acronym.  Use
+Uppercase for the identifier names.
+
+Signed-off-by: Patrick Williams <patrick@stwcx.xyz>
+Change-Id: I5d23468cb5a4d6e756c968371ef25bd2a46de87a
+---
+ configurations/terminus_2x100g_nic_tsff.json | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/configurations/terminus_2x100g_nic_tsff.json b/configurations/terminus_2x100g_nic_tsff.json
+index 9a8ad0d..35dbf6f 100644
+--- a/configurations/terminus_2x100g_nic_tsff.json
++++ b/configurations/terminus_2x100g_nic_tsff.json
+@@ -3,7 +3,7 @@
+         {
+             "Address": "$address",
+             "Bus": "$bus",
+-            "Name": "TERMINUS NIC FRU $bus",
++            "Name": "Terminus NIC FRU $bus",
+             "Type": "EEPROM"
+         },
+         {
+@@ -25,7 +25,7 @@
+             "Type": "EMC1403"
+         }
+     ],
+-    "Name": "TERMINUS NIC FRU $bus",
++    "Name": "Terminus NIC FRU $bus",
+     "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Terminus 2x100G NIC TSFF'})",
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+-- 
+2.25.1
+

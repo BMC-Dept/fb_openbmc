@@ -1,0 +1,64 @@
+From 7391d9ef23a3743dcbcb8daae91e62838dc4c1b4 Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Tue, 16 Jul 2024 14:34:47 +0800
+Subject: [PATCH 09/22] configurations: yosemite4: Add 12V EFFUSE Power Input
+ for the Medusa
+
+Add 12V EFFUSE Power Input for the Medusa Board.
+Test case: 12V EFFUSE Power Input can be read via busctl.
+
+Change-Id: Iea4e6f14170bc68f63a9c6d811c2cd9f76485594
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ configurations/yosemite4_medusaboard.json | 25 ++++++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/configurations/yosemite4_medusaboard.json b/configurations/yosemite4_medusaboard.json
+index 7922a18..ec4fba0 100644
+--- a/configurations/yosemite4_medusaboard.json
++++ b/configurations/yosemite4_medusaboard.json
+@@ -1621,10 +1621,32 @@
+                 "temp1",
+                 "vin",
+                 "vout1",
+-                "iout1"
++                "iout1",
++                "pin"
+             ],
+             "Name": "MEDUSA_12VEFFUSE",
+             "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 47.5
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 44.55
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 44.1375
++                },
+                 {
+                     "Direction": "greater than",
+                     "Label": "vin",
+@@ -1740,6 +1762,7 @@
+             ],
+             "Type": "MP5023",
+             "iout1_Name": "MEDUSA_12VEFFUSE_CURR_A",
++            "pin_Name": "MEDUSA_12VEFFUSE_INPUT_PWR_W",
+             "temp1_Name": "MEDUSA_12VEFFUSE_TEMP_C",
+             "vin_Name": "MEDUSA_12VEFFUSE_INPUT_VOLT_V",
+             "vout1_Name": "MEDUSA_12VEFFUSE_OUTPUT_VOLT_V"
+-- 
+2.25.1
+

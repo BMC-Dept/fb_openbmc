@@ -1,0 +1,51 @@
+From ab9d376b22d1c357900658673c03ca459d995164 Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Fri, 19 Jul 2024 10:33:51 +0800
+Subject: [PATCH 10/22] configurations: yosemite4: Rename Medusa FRU/config by
+ variants
+
+Rename FRU and sensor config by variants for the Medusa Board due to
+it's going to supports different sources Medusa Board.
+Test case: Medusa sensor config can be loaded and the sensors can be
+read.
+
+Change-Id: I8901f52b4bf477814c8af94e44c82649ee75fd75
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ ...dusaboard.json => yosemite4_medusaboard_adc_ti_hsc_adi.json} | 2 +-
+ meson.build                                                     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ rename configurations/{yosemite4_medusaboard.json => yosemite4_medusaboard_adc_ti_hsc_adi.json} (99%)
+
+diff --git a/configurations/yosemite4_medusaboard.json b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+similarity index 99%
+rename from configurations/yosemite4_medusaboard.json
+rename to configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+index ec4fba0..cc57804 100644
+--- a/configurations/yosemite4_medusaboard.json
++++ b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+@@ -2408,7 +2408,7 @@
+         }
+     ],
+     "Name": "Yosemite 4 Medusa Board",
+-    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
++    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-TI 12VHSC_ADI 48VHSC-ADI', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+         "Manufacturer": "$PRODUCT_MANUFACTURER",
+diff --git a/meson.build b/meson.build
+index bc8bacb..4145d3e 100644
+--- a/meson.build
++++ b/meson.build
+@@ -204,7 +204,7 @@ configs = [
+     'yosemite4_floatingfalls.json',
+     'yosemite4_wailuafalls.json',
+     'yosemite4.json',
+-    'yosemite4_medusaboard.json',
++    'yosemite4_medusaboard_adc_ti_hsc_adi.json',
+     'yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json',
+     'yosemite4_spiderboard.json',
+ ]
+-- 
+2.25.1
+

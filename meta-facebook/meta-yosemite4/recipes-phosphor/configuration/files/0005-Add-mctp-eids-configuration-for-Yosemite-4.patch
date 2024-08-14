@@ -1,7 +1,7 @@
-From 58e4fca3b1e42e1cc90fced02350535f8ef7c51a Mon Sep 17 00:00:00 2001
+From aa2674fb7fa02fa935819a807cfb399d53faae9a Mon Sep 17 00:00:00 2001
 From: Delphine CC Chiu <Delphine_CC_Chiu@wiwynn.com>
 Date: Mon, 25 Sep 2023 11:10:46 +0800
-Subject: [PATCH 3/4] Add mctp eids configuration for Yosemite 4
+Subject: [PATCH 05/22] Add mctp eids configuration for Yosemite 4
 
 The MCTP specification is defined in DSP0236. As describe in section
 8.17.2, we need a configuration for static EIDs. The `mctpd` from
@@ -15,11 +15,14 @@ Tested: check D-Bus path for configuration.
 Change-Id: I587f5a69051f783753f5855d2f51242aa1cd5bc4
 Signed-off-by: Delphine CC Chiu <Delphine_CC_Chiu@wiwynn.com>
 ---
- configurations/yosemite4_floatingfalls.json | 17 ++++++++++++++++-
- configurations/yosemite4_sentineldome.json  |  7 +++++++
- configurations/yosemite4_wailuafalls.json   | 21 +++++++++++++++++++++
- schemas/legacy.json                         |  6 ++++++
- 4 files changed, 50 insertions(+), 1 deletion(-)
+ configurations/yosemite4_floatingfalls.json   | 17 ++++++++++++++-
+ configurations/yosemite4_sentineldome_t1.json |  7 +++++++
+ .../yosemite4_sentineldome_t1_retimer.json    |  7 +++++++
+ configurations/yosemite4_sentineldome_t2.json |  7 +++++++
+ .../yosemite4_sentineldome_t2_retimer.json    |  7 +++++++
+ configurations/yosemite4_wailuafalls.json     | 21 +++++++++++++++++++
+ schemas/legacy.json                           |  6 ++++++
+ 7 files changed, 71 insertions(+), 1 deletion(-)
 
 diff --git a/configurations/yosemite4_floatingfalls.json b/configurations/yosemite4_floatingfalls.json
 index e1f9a51..c709e5b 100644
@@ -47,11 +50,11 @@ index e1f9a51..c709e5b 100644
      "Name": "Yosemite 4 Floating Falls Slot $bus % 15",
      "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Floating Falls', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
      "Type": "Board",
-diff --git a/configurations/yosemite4_sentineldome.json b/configurations/yosemite4_sentineldome.json
-index 9d368ee..725c777 100644
---- a/configurations/yosemite4_sentineldome.json
-+++ b/configurations/yosemite4_sentineldome.json
-@@ -412,6 +412,13 @@
+diff --git a/configurations/yosemite4_sentineldome_t1.json b/configurations/yosemite4_sentineldome_t1.json
+index 69063de..8d951bb 100644
+--- a/configurations/yosemite4_sentineldome_t1.json
++++ b/configurations/yosemite4_sentineldome_t1.json
+@@ -328,6 +328,13 @@
              "Zones": [
                  "Zone 1"
              ]
@@ -64,7 +67,61 @@ index 9d368ee..725c777 100644
 +            "Type": "MCTPEndpoint"
          }
      ],
-     "Name": "Yosemite 4 Sentinel Dome Slot $bus % 15",
+     "Name": "Yosemite 4 Sentinel Dome T1 Slot $bus % 15",
+diff --git a/configurations/yosemite4_sentineldome_t1_retimer.json b/configurations/yosemite4_sentineldome_t1_retimer.json
+index a3ce02e..25d0b85 100644
+--- a/configurations/yosemite4_sentineldome_t1_retimer.json
++++ b/configurations/yosemite4_sentineldome_t1_retimer.json
+@@ -347,6 +347,13 @@
+             "Zones": [
+                 "Zone 1"
+             ]
++        },
++        {
++            "Address": "0x20",
++            "Bus": "$bus % 16",
++            "EndpointId": "$bus % 15 * 10",
++            "Name": "BIC",
++            "Type": "MCTPEndpoint"
+         }
+     ],
+     "Name": "Yosemite 4 Sentinel Dome T1 with Retimer Slot $bus % 15",
+diff --git a/configurations/yosemite4_sentineldome_t2.json b/configurations/yosemite4_sentineldome_t2.json
+index 15133a2..987c96a 100644
+--- a/configurations/yosemite4_sentineldome_t2.json
++++ b/configurations/yosemite4_sentineldome_t2.json
+@@ -387,6 +387,13 @@
+             "Zones": [
+                 "Zone 1"
+             ]
++        },
++        {
++            "Address": "0x20",
++            "Bus": "$bus % 16",
++            "EndpointId": "$bus % 15 * 10",
++            "Name": "BIC",
++            "Type": "MCTPEndpoint"
+         }
+     ],
+     "Name": "Yosemite 4 Sentinel Dome T2 Slot $bus % 15",
+diff --git a/configurations/yosemite4_sentineldome_t2_retimer.json b/configurations/yosemite4_sentineldome_t2_retimer.json
+index effe42d..d1fd845 100644
+--- a/configurations/yosemite4_sentineldome_t2_retimer.json
++++ b/configurations/yosemite4_sentineldome_t2_retimer.json
+@@ -406,6 +406,13 @@
+             "Zones": [
+                 "Zone 1"
+             ]
++        },
++        {
++            "Address": "0x20",
++            "Bus": "$bus % 16",
++            "EndpointId": "$bus % 15 * 10",
++            "Name": "BIC",
++            "Type": "MCTPEndpoint"
+         }
+     ],
+     "Name": "Yosemite 4 Sentinel Dome T2 with Retimer Slot $bus % 15",
 diff --git a/configurations/yosemite4_wailuafalls.json b/configurations/yosemite4_wailuafalls.json
 index b85b023..4e706ef 100644
 --- a/configurations/yosemite4_wailuafalls.json
@@ -122,5 +179,5 @@ index 85e41a6..df89e4e 100644
                  "type": "number"
              },
 -- 
-2.43.0
+2.25.1
 

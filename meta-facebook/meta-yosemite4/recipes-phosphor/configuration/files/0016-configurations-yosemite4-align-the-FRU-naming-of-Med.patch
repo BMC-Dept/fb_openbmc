@@ -1,0 +1,31 @@
+From 3a0bbf7149e642396216dd3b4c8e24897113b537 Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Tue, 30 Jul 2024 08:56:00 +0800
+Subject: [PATCH 16/22] configurations: yosemite4: align the FRU naming of
+ Medusa Board
+
+Align the FRU naming of the Medusa Board.
+Test Plan: Entity manager and sensors can be loaded and read.
+
+Change-Id: I94d3daa9ec035492d46ec1a93466e26778fa6082
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+index cc57804..42f8e4f 100644
+--- a/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
++++ b/configurations/yosemite4_medusaboard_adc_ti_hsc_adi.json
+@@ -2408,7 +2408,7 @@
+         }
+     ],
+     "Name": "Yosemite 4 Medusa Board",
+-    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-TI 12VHSC_ADI 48VHSC-ADI', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
++    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-TI 12VHSC-ADI 48VHSC-ADI', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+         "Manufacturer": "$PRODUCT_MANUFACTURER",
+-- 
+2.25.1
+

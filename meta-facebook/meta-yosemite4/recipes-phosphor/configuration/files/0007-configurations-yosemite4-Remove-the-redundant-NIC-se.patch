@@ -1,0 +1,122 @@
+From db950e00be13abd3621afdb1e5549cd5c9cb898b Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Wed, 17 Jul 2024 11:38:52 +0800
+Subject: [PATCH 07/22] configurations: yosemite4: Remove the redundant NIC
+ sensors
+
+Remove the redundant NIC sensors in yosemite4 sensor config since these
+sensors are already implemented in NIC sensor config.
+Test case: NIC sensors can be read on yv4 platform.
+
+Change-Id: Ic033f01d7127abf1d204ff5dcd2b2d91e9ad7223
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ configurations/yosemite4.json | 92 -----------------------------------
+ 1 file changed, 92 deletions(-)
+
+diff --git a/configurations/yosemite4.json b/configurations/yosemite4.json
+index c70c3a0..b2e82f4 100644
+--- a/configurations/yosemite4.json
++++ b/configurations/yosemite4.json
+@@ -574,98 +574,6 @@
+                 "Zone 1"
+             ]
+         },
+-        {
+-            "Address": "0x1f",
+-            "Bus": 24,
+-            "Name": "NIC0_REMOTE_TEMP_C",
+-            "Name1": "NIC0_TEMP_C",
+-            "Thresholds": [
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper non recoverable",
+-                    "Severity": 4,
+-                    "Value": 115
+-                },
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper critical",
+-                    "Severity": 1,
+-                    "Value": 105
+-                }
+-            ],
+-            "Type": "TMP421"
+-        },
+-        {
+-            "Address": "0x1f",
+-            "Bus": 25,
+-            "Name": "NIC1_REMOTE_TEMP_C",
+-            "Name1": "NIC1_TEMP_C",
+-            "Thresholds": [
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper non recoverable",
+-                    "Severity": 4,
+-                    "Value": 115
+-                },
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper critical",
+-                    "Severity": 1,
+-                    "Value": 105
+-                }
+-            ],
+-            "Type": "TMP421"
+-        },
+-        {
+-            "Address": "0x1f",
+-            "Bus": 26,
+-            "Name": "NIC2_REMOTE_TEMP_C",
+-            "Name1": "NIC2_TEMP_C",
+-            "Thresholds": [
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper non recoverable",
+-                    "Severity": 4,
+-                    "Value": 115
+-                },
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper critical",
+-                    "Severity": 1,
+-                    "Value": 105
+-                }
+-            ],
+-            "Type": "TMP421"
+-        },
+-        {
+-            "Address": "0x1f",
+-            "Bus": 27,
+-            "Name": "NIC3_REMOTE_TEMP_C",
+-            "Name1": "NIC3_TEMP_C",
+-            "Thresholds": [
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper non recoverable",
+-                    "Severity": 4,
+-                    "Value": 115
+-                },
+-                {
+-                    "Direction": "greater than",
+-                    "Index": 2,
+-                    "Name": "upper critical",
+-                    "Severity": 1,
+-                    "Value": 105
+-                }
+-            ],
+-            "Type": "TMP421"
+-        },
+         {
+             "Address": "0x48",
+             "Bus": 34,
+-- 
+2.25.1
+
