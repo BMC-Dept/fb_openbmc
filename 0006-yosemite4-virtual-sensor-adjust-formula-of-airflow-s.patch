@@ -1,0 +1,34 @@
+From ae104dff3017354f6f6042e555c2c469100edcee Mon Sep 17 00:00:00 2001
+From: Ricky CX Wu <ricky.cx.wu.wiwynn@gmail.com>
+Date: Thu, 1 Aug 2024 09:41:31 +0800
+Subject: [PATCH] yosemite4: virtual-sensor: adjust formula of airflow sensor
+
+Different airbaffle design in DVT stage cause higher impedance and lower
+airflow curve in DVT chassis.
+Therefore, need to adjust the formula of airflow sensor.
+
+Tested:
+Checked the sensor value is correct by thermal team.
+
+Change-Id: Ia83cb267a6351f3f197bb86451b6c029ab4597a0
+Signed-off-by: Ricky CX Wu <ricky.cx.wu.wiwynn@gmail.com>
+---
+ .../sensors/phosphor-virtual-sensor/virtual_sensor_config.json  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/sensors/phosphor-virtual-sensor/virtual_sensor_config.json b/meta-facebook/meta-yosemite4/recipes-phosphor/sensors/phosphor-virtual-sensor/virtual_sensor_config.json
+index 751184d0e39..1fb3b32f01d 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/sensors/phosphor-virtual-sensor/virtual_sensor_config.json
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/sensors/phosphor-virtual-sensor/virtual_sensor_config.json
+@@ -476,7 +476,7 @@
+                 }
+             ]
+         },
+-        "Expression": "(((P1 + P2 + P3 + P4 + P5 + P6 + P7 + P8 + P9 + P10 + P11 + P12 + P13 + P14 + P15 + P16 + P17 + P18 + P19 + P20 + P21 + P22 + P23 + P24) / 24) * 0.0725) - 14.5"
++        "Expression": "(((P1 + P2 + P3 + P4 + P5 + P6 + P7 + P8 + P9 + P10 + P11 + P12 + P13 + P14 + P15 + P16 + P17 + P18 + P19 + P20 + P21 + P22 + P23 + P24) / 24) * 0.0702) - 16.9"
+     },
+     {
+         "Desc": {
+-- 
+2.25.1
+
