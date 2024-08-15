@@ -1,0 +1,26 @@
+From 15b5977750937e67104d0d79612498e9cbd16f66 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Thu, 15 Aug 2024 17:48:42 +0800
+Subject: [PATCH] dbus-sensors: update SRCREV
+
+update SRCREV to 00b305b90dbf56b92ba28c17f8ccf98f2910ace4
+---
+ meta-phosphor/recipes-phosphor/sensors/dbus-sensors_git.bb | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/meta-phosphor/recipes-phosphor/sensors/dbus-sensors_git.bb b/meta-phosphor/recipes-phosphor/sensors/dbus-sensors_git.bb
+index 4a1cae8f04a..021b07d2745 100644
+--- a/meta-phosphor/recipes-phosphor/sensors/dbus-sensors_git.bb
++++ b/meta-phosphor/recipes-phosphor/sensors/dbus-sensors_git.bb
+@@ -11,7 +11,7 @@ DEPENDS = " \
+     phosphor-logging \
+     sdbusplus \
+     "
+-SRCREV = "e8a14e91eefb21dc4bfa754c57212504f7fddb09"
++SRCREV = "00b305b90dbf56b92ba28c17f8ccf98f2910ace4"
+ PACKAGECONFIG ??= " \
+     adcsensor \
+     intelcpusensor \
+-- 
+2.25.1
+
