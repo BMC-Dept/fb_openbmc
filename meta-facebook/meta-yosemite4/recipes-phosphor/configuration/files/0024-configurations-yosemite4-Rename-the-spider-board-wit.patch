@@ -1,0 +1,49 @@
+From 608791c7493a8a52a342f52fabf6856653fe5e98 Mon Sep 17 00:00:00 2001
+From: RickyWu-wiwynn <ricky_cx_wu@wiwynn.com>
+Date: Thu, 15 Aug 2024 17:56:43 +0800
+Subject: [PATCH] configurations: yosemite4: Rename the spider board with
+ variants
+
+Rename the spider board with variants
+Test Case: sensors can be loaded and sensors can be read.
+
+Change-Id: Ic94e834cf5180b304dc34f166c90d63f29d91bac
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ ...piderboard.json => yosemite4_spiderboard_adc_ti_pwr_ti.json} | 2 +-
+ meson.build                                                     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ rename configurations/{yosemite4_spiderboard.json => yosemite4_spiderboard_adc_ti_pwr_ti.json} (99%)
+
+diff --git a/configurations/yosemite4_spiderboard.json b/configurations/yosemite4_spiderboard_adc_ti_pwr_ti.json
+similarity index 99%
+rename from configurations/yosemite4_spiderboard.json
+rename to configurations/yosemite4_spiderboard_adc_ti_pwr_ti.json
+index e6b7d20..7848507 100644
+--- a/configurations/yosemite4_spiderboard.json
++++ b/configurations/yosemite4_spiderboard_adc_ti_pwr_ti.json
+@@ -1030,7 +1030,7 @@
+         }
+     ],
+     "Name": "Yosemite 4 Spider Board",
+-    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Spider Board', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
++    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Spider Board ADC-TI PWR-TI', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
+     "Type": "Board",
+     "xyz.openbmc_project.Inventory.Decorator.Asset": {
+         "Manufacturer": "$PRODUCT_MANUFACTURER",
+diff --git a/meson.build b/meson.build
+index c1a6842..ab4c573 100644
+--- a/meson.build
++++ b/meson.build
+@@ -208,7 +208,7 @@ configs = [
+     'yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json',
+     'yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json',
+     'yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_adi.json',
+-    'yosemite4_spiderboard.json',
++    'yosemite4_spiderboard_adc_ti_pwr_ti.json',
+ ]
+ filepaths = []
+ foreach c : configs
+-- 
+2.25.1
+
