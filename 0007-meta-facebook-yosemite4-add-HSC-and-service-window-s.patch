@@ -1,0 +1,592 @@
+From 837dc1c8d3c992e38267fe7a5f1b5dbbc893eb00 Mon Sep 17 00:00:00 2001
+From: Eric Yang <eric.yang.wiwynn@gmail.com>
+Date: Wed, 31 Jul 2024 10:39:38 +0800
+Subject: [PATCH] meta-facebook: yosemite4: add HSC and service window scenario
+
+The service window scenario for fan control is
+1. To set PWM to 80% if one of the slots is not plugged in
+2. To set PWM to 100% when more than two slots are not plugged in.
+
+The HSC fault scenario for fan control is
+1. To set PWM to 100% when HSC fault occurs.
+
+Tested:
+1. Plugged in all slots and the fan control service would start with auto mode - pass.
+2. Set PWM to 80% if one of the slots was un-plugged when BMC boot up - pass.
+3. Set PWM to 100% if more than one slots were un-plugged when BMC boot up - pass.
+4. Unplugged one of the slots and the PWM would be set to 80% - pass.
+5. Unplugged more than one slots and PWM set to 100% - pass.
+6. When the HSC Fault is triggered, set the fan duty to 100% - pass.
+
+Change-Id: I9a92b6a0a624a3d4bf326001905c01247686faf8
+Signed-off-by: Delphine CC Chiu <Delphine_CC_Chiu@wiwynn.com>
+---
+ .../phosphor-gpio-monitor/medusa-hsc-fault    | 34 ++++++++
+ .../medusa-hsc-fault@.service                 |  7 ++
+ .../gpio/phosphor-gpio-monitor/slot-hot-plug  | 82 +++++++++++++++++++
+ .../slot-hot-plug@.service                    |  2 +
+ .../gpio/phosphor-gpio-monitor/slot-unplug    | 70 ++++++++++++++++
+ .../slot-unplug@.service                      |  7 ++
+ ...yosemite4-phosphor-multi-gpio-monitor.json | 48 +++++------
+ .../gpio/phosphor-gpio-monitor_%.bbappend     | 12 +++
+ .../files/yosemite4-check-slots-status        | 66 +++++++++++++++
+ .../yosemite4-check-slots-status.service      | 19 +++++
+ .../plat-svc/plat-svc_0.1.bb                  |  4 +
+ 11 files changed, 327 insertions(+), 24 deletions(-)
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault@.service
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug@.service
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status.service
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault
+new file mode 100644
+index 00000000000..fa688f94c05
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault
+@@ -0,0 +1,34 @@
++#!/bin/bash
++
++medusa_hsc_fault()
++{
++    local hsc_fault_position="$1"
++    local max_attempts=10
++    local attempt=1
++
++    echo "Detected HSC fault on position ${hsc_fault_position}, setting the fan speed to 100%"
++    if ! /usr/bin/systemctl stop phosphor-pid-control > /dev/null 2>&1; then
++        echo "Failed to stop phosphor-pid-control service"
++        exit 1
++    fi
++
++    while [ $attempt -le $max_attempts ]; do
++      if /usr/bin/mfg-tool fan-speed -t 100 > /dev/null 2>&1; then
++        break
++      else
++        echo "Fail to set PWM ${attempt}times, try again"
++        sleep 5
++        ((attempt++))
++      fi
++    done
++
++    if [ $attempt -gt $max_attempts ]; then
++      echo "Failed to set PWM to 100% after $max_attempts attempts."
++      exit 1
++    fi
++    echo "PWM set to 100% successfully."
++
++    exit 0
++}
++
++medusa_hsc_fault "$1"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault@.service b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault@.service
+new file mode 100644
+index 00000000000..94c8b5637f8
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault@.service
+@@ -0,0 +1,7 @@
++[Unit]
++Description=Detect medusa hsc fault on position %i
++
++[Service]
++Type=oneshot
++ExecStart=/usr/libexec/phosphor-gpio-monitor/medusa-hsc-fault %i
++SyslogIdentifier=Detect medusa hsc fault on position %i
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
+new file mode 100644
+index 00000000000..0b82c8250f7
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
+@@ -0,0 +1,82 @@
++#!/bin/bash
++
++set_fan_speed()
++{
++    local target_fan_duty="$1"
++    shift
++    local missing_slots=("$@")
++    local max_attempts=12
++    local attempt=1
++
++    echo "Slot ${missing_slots[*]} not present, set PWM to ${target_fan_duty}%."
++    if ! /usr/bin/systemctl stop phosphor-pid-control > /dev/null 2>&1; then
++        echo "Failed to stop phosphor-pid-control service."
++        exit 1
++    fi
++
++    while [ $attempt -le $max_attempts ]; do
++        if /usr/bin/mfg-tool fan-speed -t "$target_fan_duty" > /dev/null 2>&1; then
++            break
++        else
++            echo "Fail to set PWM ${attempt}times, try again"
++            sleep 5
++            ((attempt++))
++        fi
++    done
++
++    if [ $attempt -gt $max_attempts ]; then
++        echo "Failed to set PWM to ${target_fan_duty}% after $max_attempts attempts."
++        exit 1
++    fi
++    echo "PWM set to ${target_fan_duty}% successfully."
++}
++
++restart_phosphor_pid_control_service()
++{
++    if ! /usr/bin/systemctl restart phosphor-pid-control > /dev/null 2>&1; then
++        echo "Failed to restart phosphor-pid-control service."
++        exit 1
++    fi
++    echo "phosphor-pid-control service restarted successfully."
++}
++
++slot_hot_plug()
++{
++    local missing_slots=()
++    local plugin_slot=$1
++    local result
++    local filtered_result
++    local target_fan_duty=0
++
++    echo "Slot ${plugin_slot} plugin."
++    result=$(busctl call xyz.openbmc_project.ObjectMapper \
++        /xyz/openbmc_project/object_mapper \
++        xyz.openbmc_project.ObjectMapper \
++        GetSubTree sias "/xyz/openbmc_project/inventory/system/board" \
++        0 1 "xyz.openbmc_project.Inventory.Decorator.Slot")
++    filtered_result=$(echo "$result" | grep -o "/xyz/openbmc_project/inventory/system/board/Yosemite_4_Sentinel_Dome_.*_Slot_[1-8]")
++
++    for slot in {1..8}; do
++        if [ "$slot" -eq "$plugin_slot" ]; then
++            continue
++        fi
++        if ! echo "$filtered_result" | grep -q "_Slot_${slot}"; then
++            missing_slots+=("$slot")
++        fi
++    done
++
++    if [ ${#missing_slots[@]} -eq 0 ]; then
++        restart_phosphor_pid_control_service
++    else
++        if [ ${#missing_slots[@]} -eq 1 ]; then
++            target_fan_duty=80
++        else
++            target_fan_duty=100
++        fi
++        set_fan_speed "$target_fan_duty" "${missing_slots[@]}"
++    fi
++
++    exit 0
++}
++
++slot_hot_plug "$1"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
+index 66403a2a23a..00c4a95ed20 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
+@@ -5,3 +5,5 @@ Description=slot hot-plug:%i
+ Type=oneshot
+ ExecStartPre=/usr/libexec/phosphor-state-manager/wait-until-mctp-connection-done %i
+ ExecStart=/bin/systemctl restart phosphor-discover-system-state@%i.service
++ExecStart=/usr/libexec/phosphor-gpio-monitor/slot-hot-plug %i
++SyslogIdentifier=slot hot-plug%i
+\ No newline at end of file
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug
+new file mode 100644
+index 00000000000..4d1df2ead81
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug
+@@ -0,0 +1,70 @@
++#!/bin/bash
++
++set_fan_speed()
++{
++    local target_fan_duty="$1"
++    shift
++    local missing_slots=("$@")
++    local max_attempts=12
++    local attempt=1
++
++    echo "Slot ${missing_slots[*]} not present, set PWM to ${target_fan_duty}%."
++    if ! /usr/bin/systemctl stop phosphor-pid-control > /dev/null 2>&1; then
++        echo "Failed to stop phosphor-pid-control service."
++        exit 1
++    fi
++
++    while [ $attempt -le $max_attempts ]; do
++        if /usr/bin/mfg-tool fan-speed -t "$target_fan_duty" > /dev/null 2>&1; then
++            break
++        else
++            echo "Fail to set PWM ${attempt}times, try again"
++            sleep 5
++            ((attempt++))
++        fi
++    done
++
++    if [ $attempt -gt $max_attempts ]; then
++        echo "Failed to set PWM to ${target_fan_duty}% after $max_attempts attempts."
++        exit 1
++    fi
++    echo "PWM set to ${target_fan_duty}% successfully."
++}
++
++slot_unplug()
++{
++    local missing_slots=()
++    local unplugged_slot=$1
++    local result
++    local filtered_result
++    local target_fan_duty=0
++
++    echo "Slot ${unplugged_slot} unplugged."
++    result=$(busctl call xyz.openbmc_project.ObjectMapper \
++        /xyz/openbmc_project/object_mapper \
++        xyz.openbmc_project.ObjectMapper \
++        GetSubTree sias "/xyz/openbmc_project/inventory/system/board" \
++        0 1 "xyz.openbmc_project.Inventory.Decorator.Slot")
++    filtered_result=$(echo "$result" | grep -o "/xyz/openbmc_project/inventory/system/board/Yosemite_4_Sentinel_Dome_.*_Slot_[1-8]")
++
++    for slot in {1..8}; do
++        if [ "$slot" -eq "$unplugged_slot" ]; then
++            missing_slots+=("$slot")
++            continue
++        fi
++        if ! echo "$filtered_result" | grep -q "_Slot_${slot}"; then
++            missing_slots+=("$slot")
++        fi
++    done
++
++    if [ ${#missing_slots[@]} -eq 1 ]; then
++        target_fan_duty=80
++    else
++        target_fan_duty=100
++    fi
++    set_fan_speed "$target_fan_duty" "${missing_slots[@]}"
++
++    exit 0
++}
++
++slot_unplug "$1"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug@.service b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug@.service
+new file mode 100644
+index 00000000000..b9ff1598ad4
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug@.service
+@@ -0,0 +1,7 @@
++[Unit]
++Description=slot-unplug %i
++
++[Service]
++Type=oneshot
++ExecStart=/usr/libexec/phosphor-gpio-monitor/slot-unplug %i
++SyslogIdentifier=slot-unplug %i
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
+index f1d5941e67d..14ef723c35b 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
+@@ -161,12 +161,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT1_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 44,
++        "LineName": "PRSNT_SB_SLOT1_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@1.service"
++                "disable-i3c-hub@1.service",
++                "slot-unplug@1.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@1.service",
+@@ -177,12 +177,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT2_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 45,
++        "LineName": "PRSNT_SB_SLOT2_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@2.service"
++                "disable-i3c-hub@2.service",
++                "slot-unplug@2.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@2.service",
+@@ -193,12 +193,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT3_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 46,
++        "LineName": "PRSNT_SB_SLOT3_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@3.service"
++                "disable-i3c-hub@3.service",
++                "slot-unplug@3.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@3.service",
+@@ -209,12 +209,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT4_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 47,
++        "LineName": "PRSNT_SB_SLOT4_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@4.service"
++                "disable-i3c-hub@4.service",
++                "slot-unplug@4.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@4.service",
+@@ -225,12 +225,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT5_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 132,
++        "LineName": "PRSNT_SB_SLOT5_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@5.service"
++                "disable-i3c-hub@5.service",
++                "slot-unplug@5.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@5.service",
+@@ -241,12 +241,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT6_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 133,
++        "LineName": "PRSNT_SB_SLOT6_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@6.service"
++                "disable-i3c-hub@6.service",
++                "slot-unplug@6.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@6.service",
+@@ -257,12 +257,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT7_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 134,
++        "LineName": "PRSNT_SB_SLOT7_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@7.service"
++                "disable-i3c-hub@7.service",
++                "slot-unplug@7.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@7.service",
+@@ -273,12 +273,12 @@
+     },
+     {
+         "Name": "PRSNT_SB_SLOT8_BMC_N",
+-        "ChipId": "0",
+-        "GpioNum": 135,
++        "LineName": "PRSNT_SB_SLOT8_N",
+         "EventMon": "BOTH",
+         "Targets": {
+             "RISING": [
+-                "disable-i3c-hub@8.service"
++                "disable-i3c-hub@8.service",
++                "slot-unplug@8.service"
+             ],
+             "FALLING": [
+                 "slot-hot-plug@8.service",
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
+index 5507f56680c..691159a6e46 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
+@@ -14,12 +14,17 @@ SRC_URI += "file://yosemite4-phosphor-multi-gpio-monitor.json \
+             file://rescan-fru-device@.service \
+             file://rescan-fru-device \
+             file://slot-hot-plug@.service \
++            file://slot-hot-plug \
+             file://rescan-wf-bic \
+             file://rescan-wf-bic@.service \
+             file://enable-i3c-hub \
+             file://enable-i3c-hub@.service \
+             file://disable-i3c-hub \
+             file://disable-i3c-hub@.service \
++            file://slot-unplug@.service \
++            file://slot-unplug \
++            file://medusa-hsc-fault@.service \
++            file://medusa-hsc-fault \
+             "
+ 
+ RDEPENDS:${PN}:append = " bash"
+@@ -37,6 +42,8 @@ SYSTEMD_SERVICE:${PN} += " \
+     reconfig-net-interface@.service \
+     enable-i3c-hub@.service \
+     disable-i3c-hub@.service \
++    slot-unplug@.service \
++    medusa-hsc-fault@.service \
+     "
+ 
+ SYSTEMD_AUTO_ENABLE = "enable"
+@@ -55,6 +62,8 @@ do_install:append:() {
+     install -m 0644 ${WORKDIR}/rescan-wf-bic@.service ${D}${systemd_system_unitdir}/
+     install -m 0644 ${WORKDIR}/enable-i3c-hub@.service ${D}${systemd_system_unitdir}/
+     install -m 0644 ${WORKDIR}/disable-i3c-hub@.service ${D}${systemd_system_unitdir}/
++    install -m 0644 ${WORKDIR}/slot-unplug@.service ${D}${systemd_system_unitdir}/
++    install -m 0644 ${WORKDIR}/medusa-hsc-fault@.service ${D}${systemd_system_unitdir}/
+     install -d ${D}${libexecdir}/${PN}
+     install -m 0755 ${WORKDIR}/probe-slot-device ${D}${libexecdir}/${PN}/
+     install -m 0755 ${WORKDIR}/reconfig-net-interface ${D}${libexecdir}/${PN}/
+@@ -62,6 +71,9 @@ do_install:append:() {
+     install -m 0755 ${WORKDIR}/rescan-wf-bic ${D}${libexecdir}/${PN}/
+     install -m 0755 ${WORKDIR}/enable-i3c-hub ${D}${libexecdir}/${PN}/
+     install -m 0755 ${WORKDIR}/disable-i3c-hub ${D}${libexecdir}/${PN}/
++    install -m 0755 ${WORKDIR}/slot-hot-plug ${D}${libexecdir}/${PN}/
++    install -m 0755 ${WORKDIR}/slot-unplug ${D}${libexecdir}/${PN}/
++    install -m 0755 ${WORKDIR}/medusa-hsc-fault ${D}${libexecdir}/${PN}/
+     install -d ${D}/${bindir}
+     install -m 0755 ${WORKDIR}/configure-nic-mctp-endpoint.sh ${D}/${bindir}/
+ }
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status
+new file mode 100644
+index 00000000000..7dff280d0da
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status
+@@ -0,0 +1,66 @@
++#!/bin/bash
++
++set_fan_speed()
++{
++    local target_fan_duty="$1"
++    shift
++    local missing_slots=("$@")
++    local max_attempts=12
++    local attempt=1
++
++    echo "Slot ${missing_slots[*]} not present, set PWM to ${target_fan_duty}%."
++    if ! /usr/bin/systemctl stop phosphor-pid-control > /dev/null 2>&1; then
++        echo "Failed to stop phosphor-pid-control service."
++        exit 1
++    fi
++
++    while [ $attempt -le $max_attempts ]; do
++        if /usr/bin/mfg-tool fan-speed -t "$target_fan_duty" > /dev/null 2>&1; then
++            break
++        else
++            echo "Fail to set PWM ${attempt}times, try again"
++            sleep 5
++            ((attempt++))
++        fi
++    done
++
++    if [ $attempt -gt $max_attempts ]; then
++        echo "Failed to set PWM to ${target_fan_duty}% after $max_attempts attempts."
++        exit 1
++    fi
++    echo "PWM set to ${target_fan_duty}% successfully."
++}
++
++check_slots_status()
++{
++    local missing_slots=()
++    local target_fan_duty=0
++    local result
++    local filtered_result
++
++    result=$(busctl call xyz.openbmc_project.ObjectMapper \
++        /xyz/openbmc_project/object_mapper \
++        xyz.openbmc_project.ObjectMapper \
++        GetSubTree sias "/xyz/openbmc_project/inventory/system/board" \
++        0 1 "xyz.openbmc_project.Inventory.Decorator.Slot")
++    filtered_result=$(echo "$result" | grep -o "/xyz/openbmc_project/inventory/system/board/Yosemite_4_Sentinel_Dome_.*_Slot_[1-8]")
++
++    for slot in {1..8}; do
++        if ! echo "$filtered_result" | grep -q "_Slot_${slot}"; then
++            missing_slots+=("$slot")
++        fi
++    done
++
++    if [ ${#missing_slots[@]} -ne 0 ]; then
++        if [ ${#missing_slots[@]} -eq 1 ]; then
++            target_fan_duty=80
++        else
++            target_fan_duty=100
++        fi
++        set_fan_speed "$target_fan_duty" "${missing_slots[@]}"
++    fi
++
++    exit 0
++}
++
++check_slots_status
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status.service b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status.service
+new file mode 100644
+index 00000000000..92df9fa06ce
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status.service
+@@ -0,0 +1,19 @@
++[Unit]
++Description=Yosemite4 Check Slots status
++After=phosphor-pid-control.service
++After=xyz.openbmc_project.fansensor.service
++Requires=xyz.openbmc_project.fansensor.service
++After=mctpd.service
++Requires=mctpd.service
++After=xyz.openbmc_project.EntityManager.service
++Requires=xyz.openbmc_project.EntityManager.service
++After=xyz.openbmc_project.ObjectMapper.service
++Requires=xyz.openbmc_project.ObjectMapper.service
++
++[Service]
++Type=oneshot
++ExecStart=/usr/libexec/yosemite4-check-slots-status
++SyslogIdentifier=check slots status
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/plat-svc_0.1.bb b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/plat-svc_0.1.bb
+index f50e0bba153..37a91f33684 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/plat-svc_0.1.bb
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/plat-svc_0.1.bb
+@@ -12,17 +12,21 @@ SRC_URI += " \
+     file://yosemite4-early-sys-init \
+     file://yosemite4-schematic-init.service \
+     file://yosemite4-schematic-init \
++    file://yosemite4-check-slots-status.service \
++    file://yosemite4-check-slots-status \
+     "
+ 
+ SYSTEMD_PACKAGES = "${PN}"
+ SYSTEMD_SERVICE:${PN}:append = " \
+     yosemite4-sys-init.service \
+     yosemite4-schematic-init.service \
++    yosemite4-check-slots-status.service \
+     "
+ 
+ do_install() {
+     install -d ${D}${libexecdir}
+     install -m 0755 ${WORKDIR}/yosemite4-early-sys-init ${D}${libexecdir}
+     install -m 0755 ${WORKDIR}/yosemite4-schematic-init ${D}${libexecdir}
++    install -m 0755 ${WORKDIR}/yosemite4-check-slots-status ${D}${libexecdir}
+ }
+ 
+-- 
+2.25.1
+
