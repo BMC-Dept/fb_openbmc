@@ -40,8 +40,8 @@ SRC_URI += " \
     file://0036-Add-event-log-type-for-PMIC-error-VR-alert.patch \
     file://0037-platform-mc-Handle-Connectivity-propertiesChanged-si.patch \
     file://0038-platform-mc-Call-MCTP-.Recover-in-the-request-timeou.patch \
-    file://0039-requester-Use-return-code-instead-of-throwing-except.patch \
-    file://0040-platform-mc-Provide-a-default-TerminusName.patch \
+    file://0039-platform-mc-Provide-a-default-TerminusName.patch \
+    file://0040-Revert-to-previuos-sensor-name-for-PVT-build.patch \
     file://pldm-restart.sh \
     file://pldm-slow-restart.service \
     file://pldmd.service \

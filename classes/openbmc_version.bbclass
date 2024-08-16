@@ -40,5 +40,5 @@ def get_openbmc_version(d):
           version += '-dirty'
     return version
 
-OPENBMC_VERSION := "yosemite4-v2024.28.e6+Thermal_tune_fan_table.v1"
+OPENBMC_VERSION := "yosemite4-v2024.28.e6"
 DISTRO_VERSION := "${OPENBMC_VERSION}"

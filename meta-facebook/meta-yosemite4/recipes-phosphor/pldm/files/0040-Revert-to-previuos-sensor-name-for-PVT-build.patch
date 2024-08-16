@@ -1,0 +1,36 @@
+From 8882bbf4709ff5589eaf0248e736cc864fd16cf5 Mon Sep 17 00:00:00 2001
+From: SeanChuangWiwynn <Sean_Chuang@wiwynn.com>
+Date: Fri, 16 Aug 2024 17:04:56 +0800
+Subject: [PATCH] Revert to previuos sensor name for PVT build
+
+---
+ platform-mc/terminus.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/platform-mc/terminus.cpp b/platform-mc/terminus.cpp
+index c6f4f9c..4758b7a 100644
+--- a/platform-mc/terminus.cpp
++++ b/platform-mc/terminus.cpp
+@@ -422,7 +422,8 @@ void Terminus::addNumericSensor(
+                 {
+                     if (languageTag == "en" && name != "")
+                     {
+-                        sensorName = terminusName + "_" + name;
++                        sensorName = name + "_" + std::to_string(sensorId) +
++                                     "_" + std::to_string(tid);
+                     }
+                 }
+             }
+@@ -537,7 +538,8 @@ void Terminus::addCompactNumericSensor(
+             {
+                 if (languageTag == "en" && name != "")
+                 {
+-                    sensorName = terminusName + "_" + name;
++                    sensorName = name + "_" + std::to_string(sensorId) + "_" +
++                                 std::to_string(tid);
+                 }
+             }
+         }
+-- 
+2.25.1
+
