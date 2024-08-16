@@ -1,4 +1,4 @@
-From 837dc1c8d3c992e38267fe7a5f1b5dbbc893eb00 Mon Sep 17 00:00:00 2001
+From 2d5a6e85551dfa31344869c706a5663eb6549a35 Mon Sep 17 00:00:00 2001
 From: Eric Yang <eric.yang.wiwynn@gmail.com>
 Date: Wed, 31 Jul 2024 10:39:38 +0800
 Subject: [PATCH] meta-facebook: yosemite4: add HSC and service window scenario
@@ -21,21 +21,22 @@ Tested:
 Change-Id: I9a92b6a0a624a3d4bf326001905c01247686faf8
 Signed-off-by: Delphine CC Chiu <Delphine_CC_Chiu@wiwynn.com>
 ---
- .../phosphor-gpio-monitor/medusa-hsc-fault    | 34 ++++++++
+ .../phosphor-gpio-monitor/medusa-hsc-fault    | 34 +++++++
  .../medusa-hsc-fault@.service                 |  7 ++
- .../gpio/phosphor-gpio-monitor/slot-hot-plug  | 82 +++++++++++++++++++
- .../slot-hot-plug@.service                    |  2 +
- .../gpio/phosphor-gpio-monitor/slot-unplug    | 70 ++++++++++++++++
+ .../gpio/phosphor-gpio-monitor/slot-plug-in   | 82 ++++++++++++++++
+ .../slot-plug-in@.service                     |  7 ++
+ .../gpio/phosphor-gpio-monitor/slot-unplug    | 70 ++++++++++++++
  .../slot-unplug@.service                      |  7 ++
- ...yosemite4-phosphor-multi-gpio-monitor.json | 48 +++++------
- .../gpio/phosphor-gpio-monitor_%.bbappend     | 12 +++
- .../files/yosemite4-check-slots-status        | 66 +++++++++++++++
- .../yosemite4-check-slots-status.service      | 19 +++++
+ ...yosemite4-phosphor-multi-gpio-monitor.json | 94 ++++++++++++-------
+ .../gpio/phosphor-gpio-monitor_%.bbappend     | 15 +++
+ .../files/yosemite4-check-slots-status        | 66 +++++++++++++
+ .../yosemite4-check-slots-status.service      | 19 ++++
  .../plat-svc/plat-svc_0.1.bb                  |  4 +
- 11 files changed, 327 insertions(+), 24 deletions(-)
+ 11 files changed, 373 insertions(+), 32 deletions(-)
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/medusa-hsc-fault@.service
- create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in
+ create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in@.service
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug@.service
  create mode 100644 meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-check-slots-status
@@ -94,11 +95,11 @@ index 00000000000..94c8b5637f8
 +Type=oneshot
 +ExecStart=/usr/libexec/phosphor-gpio-monitor/medusa-hsc-fault %i
 +SyslogIdentifier=Detect medusa hsc fault on position %i
-diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in
 new file mode 100644
-index 00000000000..0b82c8250f7
+index 00000000000..27aba0417ec
 --- /dev/null
-+++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in
 @@ -0,0 +1,82 @@
 +#!/bin/bash
 +
@@ -142,7 +143,7 @@ index 00000000000..0b82c8250f7
 +    echo "phosphor-pid-control service restarted successfully."
 +}
 +
-+slot_hot_plug()
++slot_plug_in()
 +{
 +    local missing_slots=()
 +    local plugin_slot=$1
@@ -181,17 +182,20 @@ index 00000000000..0b82c8250f7
 +    exit 0
 +}
 +
-+slot_hot_plug "$1"
-diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
-index 66403a2a23a..00c4a95ed20 100644
---- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
-+++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-hot-plug@.service
-@@ -5,3 +5,5 @@ Description=slot hot-plug:%i
- Type=oneshot
- ExecStartPre=/usr/libexec/phosphor-state-manager/wait-until-mctp-connection-done %i
- ExecStart=/bin/systemctl restart phosphor-discover-system-state@%i.service
-+ExecStart=/usr/libexec/phosphor-gpio-monitor/slot-hot-plug %i
-+SyslogIdentifier=slot hot-plug%i
++slot_plug_in "$1"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in@.service b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in@.service
+new file mode 100644
+index 00000000000..e7187aa6ebb
+--- /dev/null
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-plug-in@.service
+@@ -0,0 +1,7 @@
++[Unit]
++Description=slot-plug-in:%i
++
++[Service]
++Type=oneshot
++ExecStart=/usr/libexec/phosphor-gpio-monitor/slot-plug-in %i
++SyslogIdentifier=slot-plug-in%i
 \ No newline at end of file
 diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/slot-unplug
 new file mode 100644
@@ -283,10 +287,10 @@ index 00000000000..b9ff1598ad4
 +ExecStart=/usr/libexec/phosphor-gpio-monitor/slot-unplug %i
 +SyslogIdentifier=slot-unplug %i
 diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
-index f1d5941e67d..14ef723c35b 100644
+index f1d5941e67d..da1d373ddc4 100644
 --- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
 +++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/yosemite4-phosphor-multi-gpio-monitor.json
-@@ -161,12 +161,12 @@
+@@ -161,128 +161,158 @@
      },
      {
          "Name": "PRSNT_SB_SLOT1_BMC_N",
@@ -302,7 +306,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@1.service",
-@@ -177,12 +177,12 @@
+-                "enable-i3c-hub@1.service"
++                "enable-i3c-hub@1.service",
++                "slot-plug-in@1.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT2_BMC_N",
@@ -318,7 +327,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@2.service",
-@@ -193,12 +193,12 @@
+-                "enable-i3c-hub@2.service"
++                "enable-i3c-hub@2.service",
++                "slot-plug-in@2.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT3_BMC_N",
@@ -334,7 +348,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@3.service",
-@@ -209,12 +209,12 @@
+-                "enable-i3c-hub@3.service"
++                "enable-i3c-hub@3.service",
++                "slot-plug-in@3.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT4_BMC_N",
@@ -350,7 +369,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@4.service",
-@@ -225,12 +225,12 @@
+-                "enable-i3c-hub@4.service"
++                "enable-i3c-hub@4.service",
++                "slot-plug-in@4.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT5_BMC_N",
@@ -366,7 +390,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@5.service",
-@@ -241,12 +241,12 @@
+-                "enable-i3c-hub@5.service"
++                "enable-i3c-hub@5.service",
++                "slot-plug-in@5.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT6_BMC_N",
@@ -382,7 +411,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@6.service",
-@@ -257,12 +257,12 @@
+-                "enable-i3c-hub@6.service"
++                "enable-i3c-hub@6.service",
++                "slot-plug-in@6.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT7_BMC_N",
@@ -398,7 +432,12 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@7.service",
-@@ -273,12 +273,12 @@
+-                "enable-i3c-hub@7.service"
++                "enable-i3c-hub@7.service",
++                "slot-plug-in@7.service"
+             ]
+         },
+         "Continue": true
      },
      {
          "Name": "PRSNT_SB_SLOT8_BMC_N",
@@ -414,51 +453,76 @@ index f1d5941e67d..14ef723c35b 100644
              ],
              "FALLING": [
                  "slot-hot-plug@8.service",
+-                "enable-i3c-hub@8.service"
++                "enable-i3c-hub@8.service",
++                "slot-plug-in@8.service"
++            ]
++        },
++        "Continue": true
++    },
++    {
++        "Name": "FLT_P48V_HSC_0_N",
++        "LineName": "FLT_P48V_HSC_0_N",
++        "EventMon": "FALLING",
++        "Targets": {
++            "FALLING": [
++                "medusa-hsc-fault@0.service"
++            ]
++        },
++        "Continue": true
++    },
++    {
++        "Name": "FLT_P48V_HSC_1_N",
++        "LineName": "FLT_P48V_HSC_1_N",
++        "EventMon": "FALLING",
++        "Targets": {
++            "FALLING": [
++                "medusa-hsc-fault@1.service"
+             ]
+         },
+         "Continue": true
 diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
-index 5507f56680c..691159a6e46 100644
+index 5507f56680c..0fd1571cad1 100644
 --- a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
 +++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor_%.bbappend
-@@ -14,12 +14,17 @@ SRC_URI += "file://yosemite4-phosphor-multi-gpio-monitor.json \
-             file://rescan-fru-device@.service \
-             file://rescan-fru-device \
-             file://slot-hot-plug@.service \
-+            file://slot-hot-plug \
-             file://rescan-wf-bic \
-             file://rescan-wf-bic@.service \
-             file://enable-i3c-hub \
+@@ -20,6 +20,12 @@ SRC_URI += "file://yosemite4-phosphor-multi-gpio-monitor.json \
              file://enable-i3c-hub@.service \
              file://disable-i3c-hub \
              file://disable-i3c-hub@.service \
-+            file://slot-unplug@.service \
++            file://slot-plug-in \
++            file://slot-plug-in@.service \
 +            file://slot-unplug \
-+            file://medusa-hsc-fault@.service \
++            file://slot-unplug@.service \
 +            file://medusa-hsc-fault \
++            file://medusa-hsc-fault@.service \
              "
  
  RDEPENDS:${PN}:append = " bash"
-@@ -37,6 +42,8 @@ SYSTEMD_SERVICE:${PN} += " \
+@@ -37,6 +43,9 @@ SYSTEMD_SERVICE:${PN} += " \
      reconfig-net-interface@.service \
      enable-i3c-hub@.service \
      disable-i3c-hub@.service \
++    slot-plug-in@.service \
 +    slot-unplug@.service \
 +    medusa-hsc-fault@.service \
      "
  
  SYSTEMD_AUTO_ENABLE = "enable"
-@@ -55,6 +62,8 @@ do_install:append:() {
+@@ -55,6 +64,9 @@ do_install:append:() {
      install -m 0644 ${WORKDIR}/rescan-wf-bic@.service ${D}${systemd_system_unitdir}/
      install -m 0644 ${WORKDIR}/enable-i3c-hub@.service ${D}${systemd_system_unitdir}/
      install -m 0644 ${WORKDIR}/disable-i3c-hub@.service ${D}${systemd_system_unitdir}/
++    install -m 0644 ${WORKDIR}/slot-plug-in@.service ${D}${systemd_system_unitdir}/
 +    install -m 0644 ${WORKDIR}/slot-unplug@.service ${D}${systemd_system_unitdir}/
 +    install -m 0644 ${WORKDIR}/medusa-hsc-fault@.service ${D}${systemd_system_unitdir}/
      install -d ${D}${libexecdir}/${PN}
      install -m 0755 ${WORKDIR}/probe-slot-device ${D}${libexecdir}/${PN}/
      install -m 0755 ${WORKDIR}/reconfig-net-interface ${D}${libexecdir}/${PN}/
-@@ -62,6 +71,9 @@ do_install:append:() {
+@@ -62,6 +74,9 @@ do_install:append:() {
      install -m 0755 ${WORKDIR}/rescan-wf-bic ${D}${libexecdir}/${PN}/
      install -m 0755 ${WORKDIR}/enable-i3c-hub ${D}${libexecdir}/${PN}/
      install -m 0755 ${WORKDIR}/disable-i3c-hub ${D}${libexecdir}/${PN}/
-+    install -m 0755 ${WORKDIR}/slot-hot-plug ${D}${libexecdir}/${PN}/
++    install -m 0755 ${WORKDIR}/slot-plug-in ${D}${libexecdir}/${PN}/
 +    install -m 0755 ${WORKDIR}/slot-unplug ${D}${libexecdir}/${PN}/
 +    install -m 0755 ${WORKDIR}/medusa-hsc-fault ${D}${libexecdir}/${PN}/
      install -d ${D}/${bindir}

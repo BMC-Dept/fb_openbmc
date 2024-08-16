@@ -1,18 +1,29 @@
-From 4e3817ed6c5d4f567c3517e2ae9fde10317279b2 Mon Sep 17 00:00:00 2001
-From: EricYang-wiwynn <Eric_Yang@wiwynn.com>
-Date: Fri, 26 Jul 2024 14:35:26 +0800
-Subject: [PATCH 2/5] meta-facebook: yosemite4: hot service enable/disable i3c
- hub
+From c4dc4a921016047d4dbc4a0f2639b6aacbc34572 Mon Sep 17 00:00:00 2001
+From: Eric Yang <eric.yang.wiwynn@gmail.com>
+Date: Thu, 15 Aug 2024 17:27:50 +0800
+Subject: [PATCH] meta-facebook: yosemite4: Prevent BMC reboot by
+ disabling/enabling i3c hub
 
-hot service enable/disable i3c hub by gpio monitor
+During hot service, disable and enable the i3c hub to prevent potential BMC reboots caused by noise from slot plug-in.
+
+This change addresses the issue where enabling the i3c port during slot plug-in can generate electrical noise due to leakage.
+
+These noises, when sent to the BMC by the i3c hub, cause interrupt storming, leading to the BMC CPU getting stuck and unexpected reboots.
+
+Tested:
+- Verified that the i3c hub is correctly disabled and enabled during hot service -pass.
+- Performed 60 plug-in and unplug operations, ensuring only one slot was operated at a time. No BMC reboots were observed -pass.
+
+Change-Id: I030daf8b4b68a43204847eeb2153757ccb18292f
+Signed-off-by: Eric Yang <eric.yang.wiwynn@gmail.com>
 ---
- .../phosphor-gpio-monitor/disable-i3c-hub     |  92 ++++++++++++++
- .../disable-i3c-hub@.service                  |   7 ++
- .../gpio/phosphor-gpio-monitor/enable-i3c-hub | 112 ++++++++++++++++++
- .../enable-i3c-hub@.service                   |   7 ++
- ...yosemite4-phosphor-multi-gpio-monitor.json |  72 ++++++++---
- .../gpio/phosphor-gpio-monitor_%.bbappend     |  10 ++
- 6 files changed, 284 insertions(+), 16 deletions(-)
+ .../phosphor-gpio-monitor/disable-i3c-hub     | 50 +++++++++++++
+ .../disable-i3c-hub@.service                  |  7 ++
+ .../gpio/phosphor-gpio-monitor/enable-i3c-hub | 50 +++++++++++++
+ .../enable-i3c-hub@.service                   |  7 ++
+ ...yosemite4-phosphor-multi-gpio-monitor.json | 72 ++++++++++++++-----
+ .../gpio/phosphor-gpio-monitor_%.bbappend     | 10 +++
+ 6 files changed, 180 insertions(+), 16 deletions(-)
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/disable-i3c-hub
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/disable-i3c-hub@.service
  create mode 100644 meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/enable-i3c-hub
@@ -20,18 +31,14 @@ hot service enable/disable i3c hub by gpio monitor
 
 diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/disable-i3c-hub b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/disable-i3c-hub
 new file mode 100644
-index 00000000000..04cecb9526e
+index 00000000000..b8268e86685
 --- /dev/null
 +++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/disable-i3c-hub
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,50 @@
 +#!/bin/bash
 +
 +disable_i3c_hub()
 +{
-+    lockfile="/tmp/i3c_hub.lock"
-+    exec 200>"$lockfile"
-+    flock 200
-+
 +    local unplugged_slot="$1"
 +    local hub_path
 +    local offset_file
@@ -55,62 +62,24 @@ index 00000000000..04cecb9526e
 +        fi
 +    done
 +
-+    # unlock
-+    echo "Unlock"
++    echo "Unlock i3c hub register."
 +    echo 16 > "$offset_file"
 +    echo 105 > "$access_file"
 +
-+    # read register 0
-+    echo "Read register 0"
-+    echo 0 > "$offset_file"
-+    cat "$access_file"
-+    # read register 17
-+    echo "Read register 17"
-+    echo 17 > "$offset_file"
-+    cat "$access_file"
-+    # read register 18
-+    echo "Read register 18"
-+    echo 18 > "$offset_file"
-+    cat "$access_file"
-+    # read register 23
-+    echo "Read register 23"
-+    echo 23 > "$offset_file"
-+    cat "$access_file"
-+    # read register 25
-+    echo "Read register 25"
-+    echo 25 > "$offset_file"
-+    cat "$access_file"
-+    # read register 83
-+    echo "Read register 83"
-+    echo 83 > "$offset_file"
-+    cat "$access_file"
-+    # read register 121
-+    echo "Read register 121"
-+    echo 121 > "$offset_file"
-+    cat "$access_file"
-+
-+    # disable
-+    echo "Disable i3c port"
++    echo "Disable slot${unplugged_slot} i3c port."
 +    echo 18 > "$offset_file"
 +    current_port=$(cat "$access_file")
-+    echo "Current i3c port status = $current_port"
 +    if [ "$unplugged_slot" -gt 4 ]; then
 +        ((unplugged_slot=unplugged_slot-4))
 +    fi
 +    mask=$((mask << (--unplugged_slot)))
-+    echo "Slot Mask = $mask"
 +    mask=$((~mask))
-+    echo "Slot Mask after NOT = $mask"
 +    current_port=$((current_port & mask))
-+    echo "New i3c port status = $current_port"
 +    echo $current_port > "$access_file"
 +
-+    # lock
-+    echo "Lock"
++    echo "Lock i3c hub register."
 +    echo 16 > "$offset_file"
 +    echo 0 > "$access_file"
-+
-+    flock -u 200
 +
 +    exit 0
 +}
@@ -131,34 +100,28 @@ index 00000000000..2ffa66b14d2
 +SyslogIdentifier=slot-disable-i3c-hub %i
 diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/enable-i3c-hub b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/enable-i3c-hub
 new file mode 100644
-index 00000000000..dbcb39e84cd
+index 00000000000..f57c7654e95
 --- /dev/null
 +++ b/meta-facebook/meta-yosemite4/recipes-phosphor/gpio/phosphor-gpio-monitor/enable-i3c-hub
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,50 @@
 +#!/bin/bash
 +
 +enable_i3c_hub()
 +{
-+    lockfile="/tmp/i3c_hub.lock"
-+    exec 200>"$lockfile"
-+    flock 200
-+
 +    local plugged_slot="$1"
 +    local hub_path
 +    local offset_file
 +    local access_file
-+    local max_attempts=20
-+    local attempt=1
-+    local result
 +    local current_port
 +    local mask=1
 +
++    sleep 2
 +    if [ "$plugged_slot" -lt 5 ]; then
 +        hub_path="/sys/kernel/debug/i3c-hub-0-*/reg"
-+        echo "Slot $plugged_slot on i3c hub 0."
++        echo "Slot${plugged_slot} on i3c hub 0."
 +    else
 +        hub_path="/sys/kernel/debug/i3c-hub-1-*/reg"
-+        echo "Slot $plugged_slot on i3c hub 1."
++        echo "Slot${plugged_slot} on i3c hub 1."
 +    fi
 +
 +    for file in $hub_path/{offset,access}; do
@@ -169,79 +132,23 @@ index 00000000000..dbcb39e84cd
 +        fi
 +    done
 +
-+    while [ $attempt -le $max_attempts ]; do
-+        result=$(i2ctransfer -y -f $((plugged_slot-1)) w1@0x24 0x00 r1)
-+        if [ $(((result >> 1) & 1 )) -eq 1 ]; then
-+            break
-+        else
-+            echo "BIC not ready, attemp ${attempt} times"
-+            sleep 0.5
-+            ((attempt++))
-+        fi
-+    done
-+
-+    if [ $attempt -gt $max_attempts ]; then
-+        echo "Failed to get BIC ready after $max_attempts attempts."
-+        exit 1
-+    fi
-+
-+    echo "BIC ready"
-+
-+    # unlock
-+    echo "Unlock"
++    echo "Unlock i3c hub register."
 +    echo 16 > "$offset_file"
 +    echo 105 > "$access_file"
 +
-+    # read register 17
-+    echo "Read register 17"
-+    echo 17 > "$offset_file"
-+    cat "$access_file"
-+    # read register 23
-+    echo "Read register 23"
-+    echo 23 > "$offset_file"
-+    cat "$access_file"
-+
-+    # enable
-+    echo "Enable i3c port"
++    echo "Enable slot${plugged_slot} i3c port."
 +    echo 18 > "$offset_file"
 +    current_port=$(cat "$access_file")
-+    echo "Current i3c port status = $current_port"
 +    if [ "$plugged_slot" -gt 4 ]; then
 +        ((plugged_slot=plugged_slot-4))
 +    fi
 +    mask=$((mask << (--plugged_slot)))
-+    echo "Slot Mask = $mask"
 +    current_port=$((current_port | mask))
-+    echo "New i3c port status = $current_port"
 +    echo $current_port > "$access_file"
 +
-+    # read register 0
-+    echo "Read register 0"
-+    echo 0 > "$offset_file"
-+    cat "$access_file"
-+    # read register 18
-+    echo "Read register 18"
-+    echo 18 > "$offset_file"
-+    cat "$access_file"
-+    # read register 25
-+    echo "Read register 25"
-+    echo 25 > "$offset_file"
-+    cat "$access_file"
-+    # read register 83
-+    echo "Read register 83"
-+    echo 83 > "$offset_file"
-+    cat "$access_file"
-+    # read register 121
-+    echo "Read register 121"
-+    echo 121 > "$offset_file"
-+    cat "$access_file"
-+
-+    # Lock
-+    echo "Lock"
++    echo "Lock i3c hub register."
 +    echo 16 > "$offset_file"
 +    echo 0 > "$access_file"
-+
-+    flock -u 200
 +
 +    exit 0
 +}
