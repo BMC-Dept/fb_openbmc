@@ -1,0 +1,124 @@
+From 3053c0fe1bb94941469050fe0c65d1b221841685 Mon Sep 17 00:00:00 2001
+From: lora <Lora_Lin@wiwynn.com>
+Date: Tue, 20 Aug 2024 15:55:19 +0800
+Subject: [PATCH] configurations: yosemite4: Set fan board current sensor
+ maxvalue
+
+---
+ ...yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_max.json | 6 ++++++
+ ...yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_mps.json | 6 ++++++
+ ...osemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_max.json | 6 ++++++
+ ...osemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_mps.json | 6 ++++++
+ 4 files changed, 24 insertions(+)
+
+diff --git a/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_max.json b/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_max.json
+index d58cac9..07ca0f0 100644
+--- a/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_max.json
++++ b/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_max.json
+@@ -229,16 +229,22 @@
+             "Type": "ADC128D818",
+             "in0_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 8 CURR_A",
+             "in0_Scale": 240,
++            "in0_Max": 2.5,
+             "in1_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 4 CURR_A",
+             "in1_Scale": 240,
++            "in1_Max": 2.5,
+             "in2_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 0 CURR_A",
+             "in2_Scale": 240,
++            "in2_Max": 2.5,
+             "in3_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 9 CURR_A",
+             "in3_Scale": 240,
++            "in3_Max": 2.5,
+             "in4_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 5 CURR_A",
+             "in4_Scale": 240,
++            "in4_Max": 2.5,
+             "in5_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 1 CURR_A",
+             "in5_Scale": 240,
++            "in5_Max": 2.5,
+             "in6_Name": "FANBOARD$bus % 30 ADC_48V_AUX_VOLT_V",
+             "in6_Scale": 31.9458,
+             "in7_Name": "FANBOARD$bus % 30 ADC_3V3_STBY_VOLT_V",
+diff --git a/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_mps.json b/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_mps.json
+index 8d792dc..fc3304e 100644
+--- a/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_mps.json
++++ b/configurations/yosemite4_fanboard_fsc_max_adc_ti_led_nxp_efuse_mps.json
+@@ -229,16 +229,22 @@
+             "Type": "ADC128D818",
+             "in0_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 8 CURR_A",
+             "in0_Scale": 300,
++            "in0_Max": 2.5,
+             "in1_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 4 CURR_A",
+             "in1_Scale": 300,
++            "in1_Max": 2.5,
+             "in2_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 0 CURR_A",
+             "in2_Scale": 300,
++            "in2_Max": 2.5,
+             "in3_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 9 CURR_A",
+             "in3_Scale": 300,
++            "in3_Max": 2.5,
+             "in4_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 5 CURR_A",
+             "in4_Scale": 300,
++            "in4_Max": 2.5,
+             "in5_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 1 CURR_A",
+             "in5_Scale": 300,
++            "in5_Max": 2.5,
+             "in6_Name": "FANBOARD$bus % 30 ADC_48V_AUX_VOLT_V",
+             "in6_Scale": 31.9458,
+             "in7_Name": "FANBOARD$bus % 30 ADC_3V3_STBY_VOLT_V",
+diff --git a/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_max.json b/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_max.json
+index 24f8a28..c226493 100644
+--- a/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_max.json
++++ b/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_max.json
+@@ -667,16 +667,22 @@
+             "Type": "MAX11615",
+             "in_voltage0_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 8 CURR_A",
+             "in_voltage0_Scale": 480,
++            "in_voltage0_Max": 2.5,
+             "in_voltage1_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 4 CURR_A",
+             "in_voltage1_Scale": 480,
++            "in_voltage1_Max": 2.5,
+             "in_voltage2_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 0 CURR_A",
+             "in_voltage2_Scale": 480,
++            "in_voltage2_Max": 2.5,
+             "in_voltage3_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 9 CURR_A",
+             "in_voltage3_Scale": 480,
++            "in_voltage3_Max": 2.5,
+             "in_voltage4_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 5 CURR_A",
+             "in_voltage4_Scale": 480,
++            "in_voltage4_Max": 2.5,
+             "in_voltage5_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 1 CURR_A",
+             "in_voltage5_Scale": 480,
++            "in_voltage5_Max": 2.5,
+             "in_voltage6_Name": "FANBOARD$bus % 30 ADC_48V_AUX_VOLT_V",
+             "in_voltage6_Scale": 63.84,
+             "in_voltage7_Name": "FANBOARD$bus % 30 ADC_3V3_STBY_VOLT_V",
+diff --git a/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_mps.json b/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_mps.json
+index 6aaaa42..20f438e 100644
+--- a/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_mps.json
++++ b/configurations/yosemite4_fanboard_fsc_nct_adc_max_led_ons_efuse_mps.json
+@@ -667,16 +667,22 @@
+             "Type": "MAX11615",
+             "in_voltage0_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 8 CURR_A",
+             "in_voltage0_Scale": 599.88,
++            "in_voltage0_Max": 2.5,
+             "in_voltage1_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 4 CURR_A",
+             "in_voltage1_Scale": 599.88,
++            "in_voltage1_Max": 2.5,
+             "in_voltage2_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 0 CURR_A",
+             "in_voltage2_Scale": 599.88,
++            "in_voltage2_Max": 2.5,
+             "in_voltage3_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 9 CURR_A",
+             "in_voltage3_Scale": 599.88,
++            "in_voltage3_Max": 2.5,
+             "in_voltage4_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 5 CURR_A",
+             "in_voltage4_Scale": 599.88,
++            "in_voltage4_Max": 2.5,
+             "in_voltage5_Name": "FANBOARD$bus % 30 ADC_48V_FAN$bus % 30 * 2 + 1 CURR_A",
+             "in_voltage5_Scale": 599.88,
++            "in_voltage5_Max": 2.5,
+             "in_voltage6_Name": "FANBOARD$bus % 30 ADC_48V_AUX_VOLT_V",
+             "in_voltage6_Scale": 63.84,
+             "in_voltage7_Name": "FANBOARD$bus % 30 ADC_3V3_STBY_VOLT_V",
+-- 
+2.25.1
+
