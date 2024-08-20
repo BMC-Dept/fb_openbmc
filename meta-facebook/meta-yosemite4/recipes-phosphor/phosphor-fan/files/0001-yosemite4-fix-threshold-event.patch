@@ -1,0 +1,39 @@
+From fb49a726e22b421a3d5e85c0d0ca9537cafcb404 Mon Sep 17 00:00:00 2001
+From: Jerry C Chen <Jerry_C_Chen@wiwynn.com>
+Date: Tue, 20 Aug 2024 16:03:46 +0800
+Subject: [PATCH] yosemite4-fix-threshold-event
+
+---
+ sensor-monitor/threshold_alarm_logger.cpp | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/sensor-monitor/threshold_alarm_logger.cpp b/sensor-monitor/threshold_alarm_logger.cpp
+index 29cd229..6f186d5 100644
+--- a/sensor-monitor/threshold_alarm_logger.cpp
++++ b/sensor-monitor/threshold_alarm_logger.cpp
+@@ -217,11 +217,8 @@ void ThresholdAlarmLogger::checkProperties(
+             {
+                 alarms[key][propertyName] = alarmValue;
+ 
+-                if (_powerState->isPowerOn())
+-                {
+-                    createEventLog(sensorPath, interface, propertyName,
+-                                   alarmValue);
+-                }
++                createEventLog(sensorPath, interface, propertyName,
++                               alarmValue);
+             }
+         }
+     }
+@@ -247,7 +244,7 @@ void ThresholdAlarmLogger::checkThresholds(const std::string& interface,
+ 
+             // This is just for checking alarms on startup,
+             // so only look for active alarms.
+-            if (alarmValue && _powerState->isPowerOn())
++            if (alarmValue)
+             {
+                 createEventLog(sensorPath, interface, property, alarmValue);
+             }
+-- 
+2.25.1
+
