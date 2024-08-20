@@ -662,6 +662,65 @@ fi
 
 delete_software_id
 
+# Update BIC version to Settings D-Bus
+if [ "$bic_name" == "sd" ]; then
+	echo "Updating SD BIC version to Settings D-Bus"
+	sleep 15 # wait for BIC reset
+	eid=$((10 * slot_id))
+
+	max_retries=3
+	retry_delay=5
+
+	for ((i=1; i<=max_retries; i++)); do
+		version=$(
+			pldmtool fw_update GetFwParams -m $eid |
+				jq --raw-output '.ActiveComponentImageSetVersionString'
+		)
+
+		# Check if the command was successful
+		if [ -n "$version" ]; then
+			echo "Version retrieved successfully: $version"
+			break
+		else
+			sleep $retry_delay
+		fi
+	done
+
+	busctl set-property \
+		xyz.openbmc_project.Settings \
+		"/xyz/openbmc_project/software/host$slot_id/Sentinel_Dome_bic" \
+		xyz.openbmc_project.Software.Version \
+		Version "s" "$version"
+elif [ "$bic_name" == "wf" ]; then
+	echo "Updating WF BIC version to Settings D-Bus"
+	sleep 15 # wait for BIC reset
+	eid=$((10 * slot_id + 2))
+
+	max_retries=3
+	retry_delay=5
+
+	for ((i=1; i<=max_retries; i++)); do
+		version=$(
+			pldmtool fw_update GetFwParams -m $eid |
+				jq --raw-output '.ActiveComponentImageSetVersionString'
+		)
+
+		# Check if the command was successful
+		if [ -n "$version" ]; then
+			echo "Version retrieved successfully: $version"
+			break
+		else
+			sleep $retry_delay
+		fi
+	done
+
+	busctl set-property \
+		xyz.openbmc_project.Settings \
+		"/xyz/openbmc_project/software/host$slot_id/Wailua_Falls_bic" \
+		xyz.openbmc_project.Software.Version \
+		Version "s" "$version"
+fi
+
 echo "Done"
 
 #unlock
