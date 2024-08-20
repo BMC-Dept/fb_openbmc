@@ -1,0 +1,29 @@
+From 982d99f181d197de2dbca5bd353b73316f199437 Mon Sep 17 00:00:00 2001
+From: Ian Chien <ianchien.wiwynn@gmail.com>
+Date: Tue, 20 Aug 2024 17:16:56 +0800
+Subject: [PATCH] PSUSensor: Add RTQ6056 supports
+
+Add device RTQ6056 reading support.
+Test case: RTQ6056 can be read via PSU sensor service.
+
+Change-Id: If7501d9e5cb95d2177b38fd7f89cafb221f26050
+Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
+---
+ src/PSUSensorMain.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/PSUSensorMain.cpp b/src/PSUSensorMain.cpp
+index ad37956..f300430 100644
+--- a/src/PSUSensorMain.cpp
++++ b/src/PSUSensorMain.cpp
+@@ -124,6 +124,7 @@ static const I2CDeviceTypeMap sensorTypes{
+     {"RAA229001", I2CDeviceType{"raa229001", true}},
+     {"RAA229004", I2CDeviceType{"raa229004", true}},
+     {"RAA229126", I2CDeviceType{"raa229126", true}},
++    {"RTQ6056", I2CDeviceType{"rtq6056", false}},
+     {"SBRMI", I2CDeviceType{"sbrmi", true}},
+     {"TDA38640", I2CDeviceType{"tda38640", true}},
+     {"TPS53679", I2CDeviceType{"tps53679", true}},
+-- 
+2.25.1
+

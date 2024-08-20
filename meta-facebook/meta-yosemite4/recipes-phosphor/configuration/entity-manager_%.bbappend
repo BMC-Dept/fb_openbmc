@@ -26,5 +26,10 @@ SRC_URI += " \
     file://0023-configurations-yosemite4-set-fail-safe-percent-to-90.patch \
     file://0024-configurations-yosemite4-Rename-the-spider-board-wit.patch \
     file://0025-configurations-yosemite4-Set-fan-board-current-senso.patch \
+    file://0026-configurations-yosemite4-Support-fifth-sources-Medus.patch \
+    file://0027-configurations-yosemite4-Support-sixth-sources-Medus.patch \
+    file://0028-configurations-yosemite4-Support-seventh-sources-Med.patch \
+    file://0029-configurations-yosemite4-Support-eighth-sources-Medu.patch \
+    file://0030-configurations-yosemite4-Support-second-sources-Spid.patch \
 "
 

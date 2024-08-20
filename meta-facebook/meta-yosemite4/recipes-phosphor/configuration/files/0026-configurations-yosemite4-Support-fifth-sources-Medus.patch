@@ -1,1279 +1,28 @@
-From 409711e9d0a96af0dd245f11c867ccf10139491b Mon Sep 17 00:00:00 2001
+From 2dfda75ccfe60d529f9c8bcfdacb86cb503ffd9c Mon Sep 17 00:00:00 2001
 From: Ian Chien <ianchien.wiwynn@gmail.com>
-Date: Wed, 31 Jul 2024 11:22:17 +0800
-Subject: [PATCH 19/22] configurations: yosemite4: Support third sources Medusa
+Date: Tue, 20 Aug 2024 17:00:35 +0800
+Subject: [PATCH 1/5] configurations: yosemite4: Support fifth sources Medusa
  board
 
-To add third sources Medusa board config.
-Todo: To test if sensor config and sensors can be loaded while the third
-sources Medusa board arrives.
+To add fifth sources Medusa board config.
+Test Case: Sensor config and sensors can be loaded and read.
 
-Change-Id: I59f1bdc3ce2133335e7025ec5d72af1ef3fa4047
+Change-Id: I8e941b4b652804195d4bcb37a96c8b3ce7f4a460
 Signed-off-by: Ian Chien <ianchien.wiwynn@gmail.com>
 ---
- ...usaboard_adc_ti_12vhsc_adi_48vhsc_inf.json | 2427 +++++++++++++++++
+ ...saboard_adc_rns_12vhsc_mps_48vhsc_inf.json | 2427 +++++++++++++++++
  meson.build                                   |    1 +
  2 files changed, 2428 insertions(+)
- create mode 100644 configurations/yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json
+ create mode 100644 configurations/yosemite4_medusaboard_adc_rns_12vhsc_mps_48vhsc_inf.json
 
-diff --git a/configurations/yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json
+diff --git a/configurations/yosemite4_medusaboard_adc_rns_12vhsc_mps_48vhsc_inf.json b/configurations/yosemite4_medusaboard_adc_rns_12vhsc_mps_48vhsc_inf.json
 new file mode 100644
-index 0000000..6c2f097
+index 0000000..e979d0b
 --- /dev/null
-+++ b/configurations/yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json
++++ b/configurations/yosemite4_medusaboard_adc_rns_12vhsc_mps_48vhsc_inf.json
 @@ -0,0 +1,2427 @@
 +{
 +    "Exposes": [
-+        {
-+            "Address": "0x40",
-+            "Bus": 0,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB1_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB1_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB1_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB1_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 1,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB2_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB2_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB2_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB2_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 2,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB3_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB3_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB3_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB3_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 3,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB4_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB4_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB4_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB4_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 4,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB5_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB5_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB5_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB5_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 5,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB6_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB6_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB6_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB6_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 6,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB7_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB7_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB7_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB7_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x40",
-+            "Bus": 7,
-+            "Labels": [
-+                "temp1",
-+                "vin",
-+                "vout1",
-+                "iout1",
-+                "pin"
-+            ],
-+            "Name": "MEDUSA_MB8_12VHSC",
-+            "Thresholds": [
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 90
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 87.956
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "iout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 83.958
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 1125
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 1099.45
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "pin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 1049.475
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "temp1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 100
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vin",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vin",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non recoverable",
-+                    "Severity": 4,
-+                    "Value": 14.333
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper critical",
-+                    "Severity": 1,
-+                    "Value": 13.176
-+                },
-+                {
-+                    "Direction": "greater than",
-+                    "Label": "vout1",
-+                    "Name": "upper non critical",
-+                    "Severity": 0,
-+                    "Value": 13.054
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non critical",
-+                    "Severity": 0,
-+                    "Value": 11.346
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower critical",
-+                    "Severity": 1,
-+                    "Value": 11.224
-+                },
-+                {
-+                    "Direction": "less than",
-+                    "Label": "vout1",
-+                    "Name": "lower non recoverable",
-+                    "Severity": 4,
-+                    "Value": 10.091
-+                }
-+            ],
-+            "Type": "ADM1281",
-+            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A_1",
-+            "iout1_Scale": 500,
-+            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W_1",
-+            "pin_Scale": 500000,
-+            "temp1_Name": "MEDUSA_MB8_12VHSC_TEMP_C",
-+            "vin_Name": "MEDUSA_MB8_12VHSC_INPUT_VOLT_V",
-+            "vout1_Name": "MEDUSA_MB8_12VHSC_OUTPUT_VOLT_V"
-+        },
-+        {
-+            "Address": "0x41",
-+            "Bus": 11,
-+            "Labels": [
-+                "vout1"
-+            ],
-+            "Name": "MEDUSA_ADC_GND_SENSE",
-+            "Type": "INA233",
-+            "vout1_Name": "MEDUSA_ADC_GND_SENSE_VOLT_V"
-+        },
 +        {
 +            "Address": "0x44",
 +            "Bus": 11,
@@ -1482,6 +231,1246 @@ index 0000000..6c2f097
 +            "vout1_Name": "MEDUSA_12VEFFUSE_OUTPUT_VOLT_V"
 +        },
 +        {
++            "Address": "0x40",
++            "Bus": 0,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB1_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB1_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB1_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB1_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB1_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB1_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 1,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB2_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB2_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB2_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB2_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB2_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB2_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 2,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB3_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB3_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB3_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB3_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB3_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB3_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 3,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB4_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB4_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB4_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB4_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB4_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB4_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 4,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB5_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB5_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB5_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB5_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB5_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB5_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 5,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB6_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB6_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB6_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB6_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB6_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB6_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 6,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB7_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB7_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB7_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB7_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB7_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB7_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
++            "Address": "0x40",
++            "Bus": 7,
++            "Labels": [
++                "temp1",
++                "vin",
++                "vout1",
++                "iout1",
++                "pin"
++            ],
++            "Name": "MEDUSA_MB8_12VHSC",
++            "Thresholds": [
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 90
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 87.956
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "iout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 83.958
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 1125
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 1099.45
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "pin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 1049.475
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "temp1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 100
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vin",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vin",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non recoverable",
++                    "Severity": 4,
++                    "Value": 14.333
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper critical",
++                    "Severity": 1,
++                    "Value": 13.176
++                },
++                {
++                    "Direction": "greater than",
++                    "Label": "vout1",
++                    "Name": "upper non critical",
++                    "Severity": 0,
++                    "Value": 13.054
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non critical",
++                    "Severity": 0,
++                    "Value": 11.346
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower critical",
++                    "Severity": 1,
++                    "Value": 11.224
++                },
++                {
++                    "Direction": "less than",
++                    "Label": "vout1",
++                    "Name": "lower non recoverable",
++                    "Severity": 4,
++                    "Value": 10.091
++                }
++            ],
++            "Type": "MP5990",
++            "iout1_Name": "MEDUSA_MB8_12VHSC_CURR_A_2",
++            "iout1_Scale": 500,
++            "pin_Name": "MEDUSA_MB8_12VHSC_INPUT_PWR_W_2",
++            "pin_Scale": 500000,
++            "temp1_Name": "MEDUSA_MB8_12VHSC_TEMP_C",
++            "vin_Name": "MEDUSA_MB8_12VHSC_INPUT_VOLT_V",
++            "vout1_Name": "MEDUSA_MB8_12VHSC_OUTPUT_VOLT_V"
++        },
++        {
 +            "CheckHysteresisWithSetpoint": true,
 +            "Class": "temp",
 +            "DCoefficient": 0.0,
@@ -1509,6 +1498,16 @@ index 0000000..6c2f097
 +            "Zones": [
 +                "Zone 1"
 +            ]
++        },
++        {
++            "Address": "0x41",
++            "Bus": 11,
++            "Labels": [
++                "in_voltage1"
++            ],
++            "Name": "MEDUSA_ADC_GND_SENSE",
++            "Type": "RTQ6056",
++            "vout1_Name": "MEDUSA_ADC_GND_SENSE_VOLT_V"
 +        },
 +        {
 +            "Class": "temp",
@@ -2432,7 +2431,7 @@ index 0000000..6c2f097
 +        }
 +    ],
 +    "Name": "Yosemite 4 Medusa Board",
-+    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-TI 12VHSC-ADI 48VHSC-INF', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
++    "Probe": "xyz.openbmc_project.FruDevice({'BOARD_PRODUCT_NAME': 'Medusa Board ADC-RNS 12VHSC-MPS 48VHSC-INF', 'PRODUCT_PRODUCT_NAME': 'Yosemite V4'})",
 +    "Type": "Board",
 +    "xyz.openbmc_project.Inventory.Decorator.Asset": {
 +        "BuildDate": "$BOARD_MANUFACTURE_DATE",
@@ -2450,15 +2449,15 @@ index 0000000..6c2f097
 +    }
 +}
 diff --git a/meson.build b/meson.build
-index 30c101c..19651d4 100644
+index ab4c573..e39c2fb 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -204,6 +204,7 @@ configs = [
-     'yosemite4.json',
-     'yosemite4_medusaboard_adc_ti_hsc_adi.json',
+@@ -208,6 +208,7 @@ configs = [
      'yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_inf.json',
-+    'yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json',
-     'yosemite4_spiderboard.json',
+     'yosemite4_medusaboard_adc_ti_12vhsc_adi_48vhsc_inf.json',
+     'yosemite4_medusaboard_adc_ti_12vhsc_mps_48vhsc_adi.json',
++    'yosemite4_medusaboard_adc_rns_12vhsc_mps_48vhsc_inf.json',
+     'yosemite4_spiderboard_adc_ti_pwr_ti.json',
  ]
  filepaths = []
 -- 
