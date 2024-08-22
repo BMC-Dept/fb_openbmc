@@ -1,0 +1,90 @@
+From 4ea81219a5fa402ab448f8178d42ed800508c50d Mon Sep 17 00:00:00 2001
+From: "Allen.Wang" <Allen_Wang@quantatw.com>
+Date: Thu, 15 Aug 2024 16:17:40 +0800
+Subject: [PATCH] meta-facebook: yosemite4: Fix yosemite4-sys-init fail to
+ start
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+yosemite4-sys-init fails while mknod which already exist,
+check if node exist to avoid fail exit.
+
+Tested:
+
+-before:
+root@bmc:~# systemctl status yosemite4-sys-init.service
+× yosemite4-sys-init.service - Yosemite4 Early System Init
+     Loaded: loaded (/usr/lib/systemd/system/yosemite4-sys-init.service; enabled; preset: enabled)
+     Active: failed (Result: exit-code) since Wed 2024-08-14 20:18:23 PDT; 38s ago
+    Process: 644 ExecStart=/usr/libexec/yosemite4-early-sys-init (code=exited, status=1/FAILURE)
+   Main PID: 644 (code=exited, status=1/FAILURE)
+        CPU: 642ms
+
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set EN_P3V_BAT_SCALED_R = 0 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set FM_BMC_SLED_CYCLE_R = 0 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set NIC0_MAIN_PWR_EN = 1 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set NIC1_MAIN_PWR_EN = 1 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set NIC2_MAIN_PWR_EN = 1 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[644]: set_gpio: set NIC3_MAIN_PWR_EN = 1 success
+Aug 14 20:18:23 bmc Yosemite4 Early Init[735]: mknod: /dev/mem: File exists
+Aug 14 20:18:23 bmc systemd[1]: yosemite4-sys-init.service: Main process exited, code=exited, status=1/FAILURE
+Aug 14 20:18:23 bmc systemd[1]: yosemite4-sys-init.service: Failed with result 'exit-code'.
+Aug 14 20:18:23 bmc systemd[1]: Failed to start Yosemite4 Early System Init.
+
+-after:
+root@bmc:~# systemctl status yosemite4-sys-init.service
+○ yosemite4-sys-init.service - Yosemite4 Early System Init
+     Loaded: loaded (/usr/lib/systemd/system/yosemite4-sys-init.service; enabled; preset: enabled)
+     Active: inactive (dead) since Thu 2024-08-15 00:23:02 PDT; 1h 1min ago
+    Process: 646 ExecStart=/usr/libexec/yosemite4-early-sys-init (code=exited, status=0/SUCCESS)
+   Main PID: 646 (code=exited, status=0/SUCCESS)
+        CPU: 658ms
+
+Signed-off-by: Allen.Wang <Allen_Wang@quantatw.com>
+Change-Id: I3e4ec67f8eeb4389b970d60c7cbca05d9474db7a
+---
+ .../plat-svc/files/yosemite4-early-sys-init    | 18 +++++++++++-------
+ 1 file changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
+index 9acc33f92f8..665a6bfb996 100644
+--- a/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
++++ b/meta-facebook/meta-yosemite4/recipes-yosemite4/plat-svc/files/yosemite4-early-sys-init
+@@ -1,14 +1,16 @@
+-#!/bin/bash -e
++#!/bin/bash
+ # shellcheck source=meta-facebook/meta-yosemite4/recipes-yosemite4/plat-tool/files/yosemite4-common-functions
+ source /usr/libexec/yosemite4-common-functions
+ 
+-
+ enable_all_fan_input()
+ {
+-    for file in /sys/bus/i2c/devices/*/hwmon/*/fan*_enable
+-    do
+-      echo 1 > "${file}"
+-    done
++    # There is no fan_enable for 2nd source Fan IC: NCT7363
++    if find /sys/bus/i2c/devices/*/hwmon/*/fan*_enable -print -quit 2>/dev/null | grep -q .; then
++      for file in /sys/bus/i2c/devices/*/hwmon/*/fan*_enable
++      do
++        echo 1 > "${file}"
++      done
++    fi
+ }
+ 
+ # set initial value for GPIO output pins
+@@ -30,7 +32,9 @@ set_gpio NIC2_MAIN_PWR_EN 1
+ set_gpio NIC3_MAIN_PWR_EN 1
+ 
+ # short-term set gpio v0~v3 to input pin for slot5~8 reset button
+-mknod -m 660 /dev/mem c 1 1
++if [ ! -c "/dev/mem" ]; then
++    mknod -m 660 /dev/mem c 1 1
++fi
+ chown root:kmem /dev/mem
+ devmem 0x1e78008c 32 0x19000000
+ 
+-- 
+2.25.1
+
