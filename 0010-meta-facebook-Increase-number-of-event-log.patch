@@ -1,0 +1,28 @@
+From b9577ff6ab8618b4da43cb5d5bbc23dc416a898f Mon Sep 17 00:00:00 2001
+From: PeterHo-wiwynn <peter.ho.wiwynn@gmail.com>
+Date: Tue, 13 Aug 2024 10:00:36 +0800
+Subject: [PATCH] meta-facebook: Increase number of event log
+
+BIOS team report that a maximum of 348 SEL entries may be
+generated when a issue occurs. Increase number of event log
+to 1000, so we can record all SEL entries of an issue.
+
+Tested: tested and verified on yosemite4.
+Change-Id: I0110b7e5e393839e16b114963c14ebab9753ab0d
+Signed-off-by: PeterHo-wiwynn <peter.ho.wiwynn@gmail.com>
+---
+ .../recipes-phosphor/logging/phosphor-logging_%.bbappend         | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 meta-facebook/recipes-phosphor/logging/phosphor-logging_%.bbappend
+
+diff --git a/meta-facebook/recipes-phosphor/logging/phosphor-logging_%.bbappend b/meta-facebook/recipes-phosphor/logging/phosphor-logging_%.bbappend
+new file mode 100644
+index 00000000000..9c00b8a9660
+--- /dev/null
++++ b/meta-facebook/recipes-phosphor/logging/phosphor-logging_%.bbappend
+@@ -0,0 +1 @@
++EXTRA_OEMESON:append = " -Derror_cap=1000"
+--
+2.25.1
+
+
