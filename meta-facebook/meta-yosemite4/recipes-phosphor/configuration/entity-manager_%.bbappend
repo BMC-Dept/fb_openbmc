@@ -31,5 +31,6 @@ SRC_URI += " \
     file://0028-configurations-yosemite4-Support-seventh-sources-Med.patch \
     file://0029-configurations-yosemite4-Support-eighth-sources-Medu.patch \
     file://0030-configurations-yosemite4-Support-second-sources-Spid.patch \
+    file://0031-configurations-yosemite4-Add-PowerState-to-Medusa-Bo.patch \
 "
 
