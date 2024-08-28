@@ -1,0 +1,84 @@
+From 1b2a3350df7e07c8f790f75c87aaab53a362822a Mon Sep 17 00:00:00 2001
+From: Bright Cheng <bright_cheng@wiwynn.com>
+Date: Tue, 27 Aug 2024 17:11:52 +0800
+Subject: [PATCH] meta-facebook: yosemite4: set powerstate to off during power
+ cycling
+
+Set property CurrentPowerState to OFF when chassis powered off to
+represent the real state.
+Set property CurrentHostState to OFF when host powered off to represent
+the real state.
+---
+ .../state/phosphor-state-manager/chassis-powercycle       | 4 ++++
+ .../state/phosphor-state-manager/host-powercycle          | 8 ++++++++
+ .../state/phosphor-state-manager/power-cmd                | 6 ++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+index e18c023f3e6..661a3df6ba4 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/chassis-powercycle
+@@ -39,6 +39,10 @@ chassis-power-cycle()
+             then
+                 echo "Failed to set slot$1 power off"
+             fi
++
++            # Set chassis power state off
++            busctl set-property "$CHASSIS_BUS_NAME""$CHASSIS_ID" "$CHASSIS_OBJ_PATH""$CHASSIS_ID" "$CHASSIS_INTF_NAME" "$CHASSIS_PROPERTY_NAME" s "$CHASSIS_OFF_PROPERTY"
++
+             sleep 20
+         fi
+         if ! gpio_set "$GPIOCHIP_IO_EXP_SLOT_PWR_CTRL" "$IO_EXP_SLOT_PWR_CTRL"=0
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/host-powercycle b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/host-powercycle
+index 517e08f7d32..cff26fa68ec 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/host-powercycle
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/host-powercycle
+@@ -27,6 +27,10 @@ get_host_status
+ if [ "$host_status" == "$STATE_ON" ]; then
+     # Set state effecter state: Entity ID 0x0000 for host power control, 0x2 for power off
+     pldmtool raw -d 0x80 0x02 0x39 0x00 0x00 0x01 0x00 0x02 -m "$EID"
++
++    # Set host state to off
++    busctl set-property "$HOST_BUS_NAME""$CHASSIS_ID" "$HOST_OBJ_PATH""$CHASSIS_ID" "$HOST_INTF_NAME" "$HOST_PROPERTY_NAME" s "$HOST_OFF_PROPERTY"
++
+     # Wait for the host to power off
+     sleep 10s
+ 
+@@ -34,6 +38,7 @@ if [ "$host_status" == "$STATE_ON" ]; then
+     get_host_status
+ 
+     if [ "$host_status" != "$STATE_OFF" ]; then
++        busctl set-property "$HOST_BUS_NAME""$CHASSIS_ID" "$HOST_OBJ_PATH""$CHASSIS_ID" "$HOST_INTF_NAME" "$HOST_PROPERTY_NAME" s "$HOST_ON_PROPERTY"
+         echo "Do power cycle fail, fail to set host$CHASSIS_ID power off"
+         exit 1
+     fi
+@@ -51,6 +56,9 @@ if [ "$host_status" != "$STATE_ON" ]; then
+         echo "Do power cycle, failed to set host$CHASSIS_ID power on"
+         exit 1
+     fi
++
++    # Set host state to on
++    busctl set-property "$HOST_BUS_NAME""$CHASSIS_ID" "$HOST_OBJ_PATH""$CHASSIS_ID" "$HOST_INTF_NAME" "$HOST_PROPERTY_NAME" s "$HOST_ON_PROPERTY"
+ fi
+ 
+ echo "Host$1 power cycle success"
+diff --git a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
+index c20fa34325e..8de29276f94 100644
+--- a/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
++++ b/meta-facebook/meta-yosemite4/recipes-phosphor/state/phosphor-state-manager/power-cmd
+@@ -14,6 +14,12 @@ export CHASSIS_INTF_NAME="xyz.openbmc_project.State.Chassis"
+ export CHASSIS_PROPERTY_NAME="CurrentPowerState"
+ export CHASSIS_ON_PROPERTY="xyz.openbmc_project.State.Chassis.PowerState.On"
+ export CHASSIS_OFF_PROPERTY="xyz.openbmc_project.State.Chassis.PowerState.Off"
++export HOST_BUS_NAME="xyz.openbmc_project.State.Host"
++export HOST_OBJ_PATH="/xyz/openbmc_project/state/host"
++export HOST_INTF_NAME="xyz.openbmc_project.State.Host"
++export HOST_PROPERTY_NAME="CurrentHostState"
++export HOST_ON_PROPERTY="xyz.openbmc_project.State.Host.HostState.Running"
++export HOST_OFF_PROPERTY="xyz.openbmc_project.State.Host.HostState.Off"
+ 
+ gpio_get()
+ {
+-- 
+2.25.1
+
