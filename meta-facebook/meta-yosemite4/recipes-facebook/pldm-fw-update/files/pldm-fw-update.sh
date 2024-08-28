@@ -1,9 +1,30 @@
 #!/bin/bash
 
+RETRY_UPDATE_COUNT=200
+
 lockfile="/tmp/pldm-fw-upate.lock"
 
 exec 200>"$lockfile"
-flock -n 200 || { echo "PLDM firmware update is already running"; exit 1; }
+retry_remain_count=$RETRY_UPDATE_COUNT
+do_restart_pldmd="true"
+echo ""
+while true
+do
+    exec 200>"$lockfile"
+    if ! flock -n 200; then
+		do_restart_pldmd="false"
+        echo -ne "PLDM firmware update is already running, retry in 10 seconds, $retry_remain_count time(s) remaining...  "\\r
+        retry_remain_count=$((retry_remain_count - 1))
+        if [ $retry_remain_count -eq 0 ]; then
+            echo ""
+			echo "Retry time exhausted, abort"
+            exit 1
+        fi
+        sleep 10
+    else
+        break
+    fi
+done
 
 SB_CPLD_ADDR="0x22"
 SB_UART_MUX_SWITCH_REG="0x08"
@@ -67,8 +88,6 @@ FAIL_TO_UPDATE_PLDM_UNABLE_TO_DETERMINE_RETIMER_TYPE=33
 NO_RETIMER_ON_THE_FRU=34
 FAIL_TO_UPDATE_PLDM_PLDM_SOFTWARE_ACTIVATION_STATUS_FAIL=35
 
-expected_t1m_devices=20
-expected_t1c_devices=12
 
 show_usage() {
 	echo "Usage: pldm-fw-update.sh [sd|ff|wf|sd_vr|wf_vr|sd_retimer] (--rcvy <slot_id> <uart image>) (<slot_id>) <pldm image>"
@@ -334,17 +353,31 @@ is_sd_bic() {
 is_other_bic_updating() {
   echo "Check if other PLDM components are updating"
 
-  pldm_output=$(busctl tree xyz.openbmc_project.PLDM)
-  if echo "$pldm_output" | grep -qE "/xyz/openbmc_project/software/[0-9]+"; then
-    echo "$pldm_output" | grep -E "/xyz/openbmc_project/software/[0-9]+"
-	previous_software_id=$(busctl tree xyz.openbmc_project.PLDM |grep /xyz/openbmc_project/software/ | cut -d "/" -f 5)
-    busctl get-property xyz.openbmc_project.PLDM /xyz/openbmc_project/software/"$previous_software_id" xyz.openbmc_project.Software.ActivationProgress Progress > /dev/null
-	ret=$?
-	if [ "$ret" -eq 0 ]; then
-		echo "It can only be updated one PLDM component at a time. Please wait until the software update is completed."
-		exit 255
-	fi
-  fi
+  retry_remain_count=$RETRY_UPDATE_COUNT
+  while true
+  do
+	  pldm_output=$(busctl tree xyz.openbmc_project.PLDM)
+	  if echo "$pldm_output" | grep -qE "/xyz/openbmc_project/software/[0-9]+"; then
+		echo "$pldm_output" | grep -E "/xyz/openbmc_project/software/[0-9]+"
+		previous_software_id=$(busctl tree xyz.openbmc_project.PLDM |grep /xyz/openbmc_project/software/ | cut -d "/" -f 5)
+		busctl get-property xyz.openbmc_project.PLDM /xyz/openbmc_project/software/"$previous_software_id" xyz.openbmc_project.Software.ActivationProgress Progress > /dev/null
+		ret=$?
+		if [ "$ret" -eq 0 ]; then
+			echo -ne "Please wait until the other software update is completed, retry in 10 seconds, $retry_remain_count time(s) remaining... "\\r
+			retry_remain_count=$((retry_remain_count - 1))
+			if [ $retry_remain_count -eq 0 ]; then
+				echo ""
+				echo "Retry time exhausted, abort"
+				exit 255
+			fi
+		else
+			break
+		fi
+	  else
+		break
+	  fi
+	  sleep 10
+  done
 }
 
 # Function to prompt for continuation and check user input
@@ -495,7 +528,7 @@ slot_id=
 bic_name=$1
 pldm_image=$2
 
-if [ ! -f /tmp/fw-util.lock ]; then
+if [ ! -f /tmp/fw-util.lock ] && [ "$do_restart_pldmd" == "true" ]; then
     device_list=$(busctl tree xyz.openbmc_project.PLDM | grep '/xyz/openbmc_project/inventory/Item/Board/' | wc -l)
     if [ "$device_list" -ne "$expected_t1m_devices" ] && [ "$device_list" -ne "$expected_t1c_devices" ]; then
         echo "Restarting pldmd due to incomplete device"
